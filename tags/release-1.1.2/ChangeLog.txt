@@ -1,0 +1,32 @@
+Release Notes											{#changelog}
+=============
+
+1.1.2 release (08-07-2012):
+---------------------------
+
+- Revised `std::numeric_limits::round_style` to return `std::round_toward_zero` 
+  if the `float` version also does and `std::round_indeterminate` otherwise.
+- Fixed `std::numeric_limits::round_error` to reflect worst-case round toward 
+  zero behaviour.
+
+
+1.1.1 release (08-06-2012):
+---------------------------
+
+- Fixed `std::numeric_limits::min` to return smallest positive normal number, 
+  instead of subnormal number.
+- Fixed `std::numeric_limits::round_style` to return `std::round_indeterminate` 
+  due to mixture of separately rounded single-precision arithmetics with 
+  truncating single-to-half conversions.
+
+
+1.1.0 release (08-06-2012):
+---------------------------
+
+- Added half-precision literals.
+
+
+1.0.0 release (08-05-2012):
+---------------------------
+
+- First release.
