@@ -1,7 +1,0 @@
-Release Notes											{#changelog}
-=============
-
-1.0.0 release (08-05-2012):
----------------------------
-
-- First release.
