@@ -328,10 +328,10 @@ namespace half_float
 		/// Fastest signed integer capable of holding all values of type uint16.
 		typedef conditional<std::numeric_limits<int>::digits>=16,int,long>::type int17;
 	#endif
-/*
+
 		/// Helper for tag dispatching.
 		template<bool> struct booltype {};
-*/
+
 		/// Generic half expression.
 		/// This class represents the base class for expressions of half-precision type, convertible to single precision.
 		/// \tparam E concrete expression type
@@ -1419,7 +1419,7 @@ namespace half_float
 		/// \tparam R rounding mode to use, `std::round_indeterminate` for fastest rounding
 		/// \param value single-precision value
 		/// \return binary representation of half-precision value
-		template<std::float_round_style R> uint16 float2half(float value/*, booltype<true>*/)
+		template<std::float_round_style R> uint16 float2half_impl(float value, booltype<true>)
 		{
 		#if HALF_ENABLE_CPP11_STATIC_ASSERT
 			static_assert(std::numeric_limits<float>::is_iec559, "float to half conversion needs IEEE 754 conformant 'float' type");
@@ -1490,7 +1490,7 @@ namespace half_float
 					((bits>>23)!=256)))&(hbits<0xFC00)&(hbits>>15)) - ((hbits==0x7C00)&((bits>>23)!=255));
 			return hbits;
 		}
-/*
+
 		/// Convert non-IEEE single-precision to half-precision.
 		/// \param value single-precision value
 		/// \return binary representation of half-precision value
@@ -1540,7 +1540,7 @@ namespace half_float
 		{
 			return float2half_impl<R>(value, booltype<std::numeric_limits<float>::is_iec559>());
 		}
-*/
+
 		/// Convert IEEE single-precision to half-precision.
 		/// \param value single-precision value
 		/// \return binary representation of half-precision value
@@ -1552,7 +1552,7 @@ namespace half_float
 		/// Convert half-precision to IEEE single-precision.
 		/// \param value binary representation of half-precision value
 		/// \return single-precision value
-		inline float half2float(uint16 value/*, booltype<true>*/)
+		inline float half2float_impl(uint16 value, booltype<true>)
 		{
 		#if HALF_ENABLE_CPP11_STATIC_ASSERT
 			static_assert(std::numeric_limits<float>::is_iec559, "half to float conversion needs IEEE 754 conformant 'float' type");
@@ -1702,7 +1702,7 @@ namespace half_float
 			std::memcpy(&out, &bits, sizeof(float));
 			return out;
 		}
-/*
+
 		/// Convert half-precision to non-IEEE single-precision.
 		/// \param value binary representation of half-precision value
 		/// \return single-precision value
@@ -1742,7 +1742,7 @@ namespace half_float
 		{
 			return half2float_impl(value, booltype<std::numeric_limits<float>::is_iec559>());
 		}
-*/
+
 		/// Conversion to single-precision.
 		/// \return single precision value representing expression value
 		template<typename E> half_expr<E>::operator float() const
