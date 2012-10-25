@@ -404,8 +404,8 @@ namespace half_float
 		/// \name Conversion
 		/// \{
 		template<std::float_round_style R> uint16 float2half(float value);
-		uint16 float2half(float value);
 		float half2float(uint16 value);
+		template<typename T,std::float_round_style R> T half2int(uint16 value);
 		/// \}
 
 		/// \name Arithmetic operators
@@ -639,7 +639,7 @@ namespace half_float
 		/// Conversion constructor.
 		/// \param rhs float to convert
 		explicit half(float rhs)
-			: data_(detail::float2half(rhs))
+			: data_(detail::float2half<std::round_indeterminate>(rhs))
 		{
 		}
 
@@ -648,7 +648,7 @@ namespace half_float
 		/// \param rhs half expression to copy from
 		template<typename E>
 		half(const detail::half_expr<E> &rhs)
-			: data_(detail::float2half(static_cast<float>(rhs)))
+			: data_(detail::float2half<std::round_indeterminate>(static_cast<float>(rhs)))
 		{
 		}
 	
@@ -665,7 +665,7 @@ namespace half_float
 		/// \return reference to this half
 		template<typename E> half& operator=(const detail::half_expr<E> &rhs)
 		{
-			data_ = detail::float2half(static_cast<float>(rhs));
+			data_ = detail::float2half<std::round_indeterminate>(static_cast<float>(rhs));
 			return *this;
 		}
 
@@ -675,7 +675,7 @@ namespace half_float
 		/// \return reference to this half
 		template<typename E> half& operator+=(const detail::half_expr<E> &rhs)
 		{
-			data_ = detail::float2half(detail::half2float(data_)+static_cast<float>(rhs));
+			data_ = detail::float2half<std::round_indeterminate>(detail::half2float(data_)+static_cast<float>(rhs));
 			return *this;
 		}
 
@@ -685,7 +685,7 @@ namespace half_float
 		/// \return reference to this half
 		template<typename E> half& operator-=(const detail::half_expr<E> &rhs)
 		{
-			data_ = detail::float2half(detail::half2float(data_)-static_cast<float>(rhs));
+			data_ = detail::float2half<std::round_indeterminate>(detail::half2float(data_)-static_cast<float>(rhs));
 			return *this;
 		}
 
@@ -695,7 +695,7 @@ namespace half_float
 		/// \return reference to this half
 		template<typename E> half& operator*=(const detail::half_expr<E> &rhs)
 		{
-			data_ = detail::float2half(detail::half2float(data_)*static_cast<float>(rhs));
+			data_ = detail::float2half<std::round_indeterminate>(detail::half2float(data_)*static_cast<float>(rhs));
 			return *this;
 		}
 
@@ -705,7 +705,7 @@ namespace half_float
 		/// \return reference to this half
 		template<typename E> half& operator/=(const detail::half_expr<E> &rhs)
 		{
-			data_ = detail::float2half(detail::half2float(data_)/static_cast<float>(rhs));
+			data_ = detail::float2half<std::round_indeterminate>(detail::half2float(data_)/static_cast<float>(rhs));
 			return *this;
 		}
 
@@ -714,7 +714,7 @@ namespace half_float
 		/// \return reference to this half
 		half& operator=(float rhs)
 		{
-			data_ = detail::float2half(rhs);
+			data_ = detail::float2half<std::round_indeterminate>(rhs);
 			return *this;
 		}
 
@@ -723,7 +723,7 @@ namespace half_float
 		/// \return reference to this half
 		half& operator+=(float rhs)
 		{
-			data_ = detail::float2half(detail::half2float(data_)+rhs);
+			data_ = detail::float2half<std::round_indeterminate>(detail::half2float(data_)+rhs);
 			return *this;
 		}
 
@@ -732,7 +732,7 @@ namespace half_float
 		/// \return reference to this half
 		half& operator-=(float rhs)
 		{
-			data_ = detail::float2half(detail::half2float(data_)-rhs);
+			data_ = detail::float2half<std::round_indeterminate>(detail::half2float(data_)-rhs);
 			return *this;
 		}
 
@@ -741,7 +741,7 @@ namespace half_float
 		/// \return reference to this half
 		half& operator*=(float rhs)
 		{
-			data_ = detail::float2half(detail::half2float(data_)*rhs);
+			data_ = detail::float2half<std::round_indeterminate>(detail::half2float(data_)*rhs);
 			return *this;
 		}
 
@@ -750,7 +750,7 @@ namespace half_float
 		/// \return reference to this half
 		half& operator/=(float rhs)
 		{
-			data_ = detail::float2half(detail::half2float(data_)/rhs);
+			data_ = detail::float2half<std::round_indeterminate>(detail::half2float(data_)/rhs);
 			return *this;
 		}
 
@@ -758,7 +758,7 @@ namespace half_float
 		/// \return incremented half value
 		half& operator++()
 		{
-			data_ = detail::float2half(detail::half2float(data_)+1.0f);
+			data_ = detail::float2half<std::round_indeterminate>(detail::half2float(data_)+1.0f);
 			return *this;
 		}
 
@@ -766,7 +766,7 @@ namespace half_float
 		/// \return decremented half value
 		half& operator--()
 		{
-			data_ = detail::float2half(detail::half2float(data_)-1.0f);
+			data_ = detail::float2half<std::round_indeterminate>(detail::half2float(data_)-1.0f);
 			return *this;
 		}
 
@@ -775,7 +775,7 @@ namespace half_float
 		half operator++(int)
 		{
 			detail::uint16 out = data_;
-			data_ = detail::float2half(detail::half2float(data_)+1.0f);
+			data_ = detail::float2half<std::round_indeterminate>(detail::half2float(data_)+1.0f);
 			return half(out, true);
 		}
 
@@ -784,7 +784,7 @@ namespace half_float
 		half operator--(int)
 		{
 			detail::uint16 out = data_;
-			data_ = detail::float2half(detail::half2float(data_)-1.0f);
+			data_ = detail::float2half<std::round_indeterminate>(detail::half2float(data_)-1.0f);
 			return half(out, true);
 		}
 	
@@ -1006,18 +1006,7 @@ namespace half_float
 	/// \return nearest integer, rounded away from zero in half-way cases
 	inline long lround(half arg)
 	{
-		unsigned int e = arg.data_ & 0x7C00;
-		if(e == 0x7C00)
-			return signbit(arg) ? std::numeric_limits<long>::min() : std::numeric_limits<long>::max();
-		if(e < 0x3800)
-			return 0L;
-		unsigned int m = (arg.data_&0x3FF) | 0x400;
-		e >>= 10;
-		if(e > 25)
-			m <<= e - 25;
-		else if(e < 25)
-			m = ((m>>(24-e))+1) >> 1;
-		return signbit(arg) ? -static_cast<long>(m) : static_cast<long>(m);
+		return detail::half2int<long,std::round_to_nearest>(arg.data_);
 	}
 #if HALF_ENABLE_CPP11_LONG_LONG
 	/// Nearest integer.
@@ -1025,9 +1014,7 @@ namespace half_float
 	/// \return nearest integer, rounded away from zero in half-way cases
 	inline long long llround(half arg)
 	{
-		long l = lround(arg);
-		return (l>std::numeric_limits<long>::min()) ? ((l<std::numeric_limits<long>::max()) ? 
-			static_cast<long long>(l) : std::numeric_limits<long long>::max()) : std::numeric_limits<long long>::min();
+		return detail::half2int<long long,std::round_to_nearest>(arg.data_);
 	}
 #endif
 	/// Decompress floating point number.
@@ -1168,7 +1155,7 @@ namespace half_float
 			return half((to.data_&0x8000)+1, true);
 		bool lt = (signbit(from) ? (static_cast<detail::int17>(0x8000)-from.data_) : static_cast<detail::int17>(from.data_)) < 
 			(signbit(to) ? (static_cast<detail::int17>(0x8000)-to.data_) : static_cast<detail::int17>(to.data_));
-		return half((from.data_+(((from.data_>>15)^static_cast<detail::uint16>(lt))<<1))-1, true);
+		return half(from.data_+(((from.data_>>15)^static_cast<detail::uint16>(lt))<<1)-1, true);
 	}
 
 	/// Next representable value.
@@ -1184,7 +1171,7 @@ namespace half_float
 			return half(static_cast<float>(to));
 		if(!(from.data_&0x7FFF))
 			return half((static_cast<detail::uint16>(detail::signbit(to))<<15)+1, true);
-		return half((from.data_+(((from.data_>>15)^static_cast<detail::uint16>(lfrom<to))<<1))-1, true);
+		return half(from.data_+(((from.data_>>15)^static_cast<detail::uint16>(lfrom<to))<<1)-1, true);
 	}
 
 	/// Take sign.
@@ -1541,14 +1528,6 @@ namespace half_float
 			return float2half_impl<R>(value, booltype<std::numeric_limits<float>::is_iec559>());
 		}
 
-		/// Convert IEEE single-precision to half-precision.
-		/// \param value single-precision value
-		/// \return binary representation of half-precision value
-		inline uint16 float2half(float value)
-		{
-			return float2half<std::round_indeterminate>(value);
-		}
-
 		/// Convert half-precision to IEEE single-precision.
 		/// \param value binary representation of half-precision value
 		/// \return single-precision value
@@ -1741,6 +1720,44 @@ namespace half_float
 		inline float half2float(uint16 value)
 		{
 			return half2float_impl(value, booltype<std::numeric_limits<float>::is_iec559>());
+		}
+
+		/// Convert half-precision floating point to integer.
+		/// \tparam T type to convert to (integer type with at least 16 bits precision, excluding any implicit sign bits)
+		/// \tparam R rounding mode to use, `std::round_indeterminate` for fastest rounding
+		/// \param binary representation of half-precision value
+		/// \return integral value
+		template<typename T,std::float_round_style R> T half2int(uint16 value)
+		{
+		#if HALF_ENABLE_CPP11_STATIC_ASSERT
+			static_assert(std::numeric_limits<T>::digits>=16, "half only convertible to integers with at least 16 bits precision (exluding sign)");
+		#endif
+			unsigned int e = value & 0x7C00;
+			if(e == 0x7C00)
+				return (value&0x8000) ? std::numeric_limits<T>::min() : std::numeric_limits<T>::max();
+			if(e < 0x3800)
+				return static_cast<T>(0);
+			T m = (value&0x3FF) | 0x400;
+			e >>= 10;
+			if(e < 25)
+			{
+				if(R == std::round_indeterminate || R == std::round_toward_zero)
+					m >>= 25 - e;
+				else
+				{
+					T frac = m & ((1<<(25-e))-1);
+					m >>= 25 - e;
+					if(R == std::round_to_nearest)
+						m += frac >> (24-e);
+					else if(R == std::round_toward_infinity)
+						m += ~(value>>15) & (frac!=0);
+					else if(R == std::round_toward_neg_infinity)
+						m += (value>>15) & (frac!=0);
+				}
+			}
+			else
+				m <<= e - 25;
+			return (value&0x8000) ? -m : m;
 		}
 
 		/// Conversion to single-precision.
