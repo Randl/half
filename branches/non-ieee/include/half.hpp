@@ -14,7 +14,7 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-// Version 1.7.0
+// Version 1.7.1
 
 /// \file
 /// Main header file for half precision functionality.
@@ -165,14 +165,11 @@
 /// operation, in particular it just evaluates to positive infinity.
 #define HUGE_VALH	std::numeric_limits<half_float::half>::infinity()
 
-#if !defined(HALF_ENABLE_CPP11_CMATH) || defined(FP_FAST_FMAF)
-	/// Fast half-precision fma function.
-	/// This symbol is only defined if the fma() function generally executes as fast as, or faster than, a separate 
-	/// half-precision multiplication followed by an addition. Due to the internal single-precision implementation of this 
-	/// function, it is only defined if the corresponding `FP_FAST_FMAF` symbol from `<cmath>` is defined or C++11 `<cmath>` 
-	/// functions are not supported.
-	#define FP_FAST_FMAH	1
-#endif
+/// Fast half-precision fma function.
+/// This symbol is only defined if the fma() function generally executes as fast as, or faster than, a separate 
+/// half-precision multiplication followed by an addition. Due to the internal single-precision implementation of all 
+/// arithmetic operations, this is usually always the case.
+#define FP_FAST_FMAH	1
 
 #ifndef FP_ILOGB0
 	#define FP_ILOGB0		INT_MIN
@@ -337,15 +334,22 @@ namespace half_float
 		/// \tparam E concrete expression type
 		template<typename E> struct half_expr
 		{
-			operator float() const;
+			/// Conversion to single-precision.
+			/// \return single precision value representing expression value
+			operator float() const { return static_cast<float>(*static_cast<const E*>(this)); }
 		};
 
 		/// Temporary half expression with internal float.
 		/// This class represents a half-precision expression which just stores a single-precision value internally.
 		struct float_half_expr : public half_expr<float_half_expr>
 		{
-			explicit float_half_expr(float f);
-			operator float() const;
+			/// Conversion constructor.
+			/// \param f single-precision value to convert
+			explicit float_half_expr(float f) : value(f) {}
+
+			/// Conversion to single-precision.
+			/// \return single precision value representing expression value
+			operator float() const { return value; }
 
 			/// Internal expression value stored in single-precision.
 			float value;
@@ -358,7 +362,7 @@ namespace half_float
 		template<typename T,typename U,std::float_round_style R> struct half_caster;
 /*		{
 		#if HALF_ENABLE_CPP11_STATIC_ASSERT
-			static T cast(const U &arg);
+			static T cast(const U&) { static_assert(false, "unsupported half cast"); }
 		#endif
 		};
 */
@@ -428,7 +432,7 @@ namespace half_float
 		template<typename E> float_half_expr abs(const half_expr<E> &arg);
 		template<typename E> float_half_expr fabs(const half_expr<E> &arg);
 		template<typename X,typename Y> float_half_expr fmod(const half_expr<X> &x, const half_expr<Y> &y);
-		template<typename X,typename Y,typename Z> float_half_expr fma(const half_expr<X> &x, const half_expr<Y> &y, const half_expr<Y> &z);
+		template<typename X,typename Y,typename Z> float_half_expr fma(const half_expr<X> &x, const half_expr<Y> &y, const half_expr<Z> &z);
 		template<typename X,typename Y> float_half_expr fdim(const half_expr<X> &x, const half_expr<Y> &y);
 	#if HALF_ENABLE_CPP11_CMATH
 		template<typename X,typename Y> float_half_expr remainder(const half_expr<X> &x, const half_expr<Y> &y);
@@ -591,9 +595,9 @@ namespace half_float
 	{
 		template<typename,typename,std::float_round_style> friend struct detail::half_caster;
 		friend class std::numeric_limits<half>;
-#if HALF_ENABLE_CPP11_HASH
+	#if HALF_ENABLE_CPP11_HASH
 		friend struct std::hash<half>;
-#endif
+	#endif
 
 		friend bool operator==(half, half);
 		friend bool operator!=(half, half);
@@ -609,9 +613,9 @@ namespace half_float
 		friend half trunc(half);
 		friend half round(half);
 		friend long lround(half);
-#if HALF_ENABLE_CPP11_LONG_LONG
+	#if HALF_ENABLE_CPP11_LONG_LONG
 		friend long long llround(half);
-#endif
+	#endif
 		friend half frexp(half, int*);
 		friend half modf(half, half*);
 		friend half scalbln(half, long);
@@ -631,33 +635,21 @@ namespace half_float
 		/// Default constructor.
 		/// This initializes the half to 0. Although this does not match the builtin types' default-initialization semantics 
 		/// and may be less efficient than no initialization, it is needed to provide proper value-initialization semantics.
-		HALF_CONSTEXPR half()
-			: data_()
-		{
-		}
+		HALF_CONSTEXPR half() : data_() {}
 
 		/// Conversion constructor.
 		/// \param rhs float to convert
-		explicit half(float rhs)
-			: data_(detail::float2half<std::round_indeterminate>(rhs))
-		{
-		}
+		explicit half(float rhs) : data_(detail::float2half<std::round_indeterminate>(rhs)) {}
 
 		/// Copy constructor.
 		/// \tparam E type of concrete half expression
 		/// \param rhs half expression to copy from
-		template<typename E>
-		half(const detail::half_expr<E> &rhs)
-			: data_(detail::float2half<std::round_indeterminate>(static_cast<float>(rhs)))
-		{
-		}
+		template<typename E> half(const detail::half_expr<E> &rhs)
+			: data_(detail::float2half<std::round_indeterminate>(static_cast<float>(rhs))) {}
 	
 		/// Conversion to single-precision.
 		/// \return single precision value representing expression value
-		operator float() const
-		{
-			return detail::half2float(data_);
-		}
+		operator float() const { return detail::half2float(data_); }
 
 		/// Assignment operator.
 		/// \tparam E type of concrete half expression
@@ -791,10 +783,7 @@ namespace half_float
 	private:
 		/// Constructor.
 		/// \param bits binary representation to set half to
-		HALF_CONSTEXPR half(detail::uint16 bits, bool)
-			: data_(bits)
-		{
-		}
+		HALF_CONSTEXPR half(detail::uint16 bits, bool) : data_(bits) {}
 
 		/// Internal binary representation
 		detail::uint16 data_;
@@ -1085,7 +1074,7 @@ namespace half_float
 	/// \return \a arg multplied by 2 raised to \a exp	
 	inline half scalbln(half x, long exp)
 	{
-		int e = x.data_ & 0x7C00;
+		long e = x.data_ & 0x7C00;
 		if(e == 0x7C00)
 			return x;
 		unsigned int m = x.data_ & 0x3FF;
@@ -1409,8 +1398,7 @@ namespace half_float
 		template<std::float_round_style R> uint16 float2half_impl(float value, booltype<true>)
 		{
 		#if HALF_ENABLE_CPP11_STATIC_ASSERT
-			static_assert(std::numeric_limits<float>::is_iec559, "float to half conversion needs IEEE 754 conformant 'float' type");
-			static_assert(sizeof(uint32)==sizeof(float), "float to half conversion needs unsigned integer type of exactly 32 bits width");
+			static_assert(sizeof(uint32)==sizeof(float), "float to half conversion needs unsigned integer type of exactly the size of a 'float'");
 		#endif
 			static const uint16 base_table[512] = { 
 				0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 
@@ -1534,8 +1522,7 @@ namespace half_float
 		inline float half2float_impl(uint16 value, booltype<true>)
 		{
 		#if HALF_ENABLE_CPP11_STATIC_ASSERT
-			static_assert(std::numeric_limits<float>::is_iec559, "half to float conversion needs IEEE 754 conformant 'float' type");
-			static_assert(sizeof(uint32)==sizeof(float), "half to float conversion needs unsigned integer type of exactly 32 bits width");
+			static_assert(sizeof(uint32)==sizeof(float), "half to float conversion needs unsigned integer type of exactly the size of a 'float'");
 		#endif
 			static const uint32 mantissa_table[2048] = { 
 				0x00000000, 0x33800000, 0x34000000, 0x34400000, 0x34800000, 0x34A00000, 0x34C00000, 0x34E00000, 0x35000000, 0x35100000, 0x35200000, 0x35300000, 0x35400000, 0x35500000, 0x35600000, 0x35700000, 
@@ -1725,7 +1712,7 @@ namespace half_float
 		/// Convert half-precision floating point to integer.
 		/// \tparam T type to convert to (integer type with at least 16 bits precision, excluding any implicit sign bits)
 		/// \tparam R rounding mode to use, `std::round_indeterminate` for fastest rounding
-		/// \param binary representation of half-precision value
+		/// \param value binary representation of half-precision value
 		/// \return integral value
 		template<typename T,std::float_round_style R> T half2int(uint16 value)
 		{
@@ -1736,7 +1723,7 @@ namespace half_float
 			if(e == 0x7C00)
 				return (value&0x8000) ? std::numeric_limits<T>::min() : std::numeric_limits<T>::max();
 			if(e < 0x3800)
-				return static_cast<T>(0);
+				return T();
 			T m = (value&0x3FF) | 0x400;
 			e >>= 10;
 			if(e < 25)
@@ -1760,38 +1747,6 @@ namespace half_float
 			return (value&0x8000) ? -m : m;
 		}
 
-		/// Conversion to single-precision.
-		/// \return single precision value representing expression value
-		template<typename E> half_expr<E>::operator float() const
-		{
-				return static_cast<float>(*static_cast<const E*>(this));
-		}
-
-		/// Conversion constructor.
-		/// \param f single-precision value to convert
-		inline float_half_expr::float_half_expr(float f)
-				: value(f)
-		{
-		}
-
-		/// Conversion to single-precision.
-		/// \return single precision value representing expression value
-		inline float_half_expr::operator float() const
-		{
-			return value;
-		}
-/*
-		#if HALF_ENABLE_CPP11_STATIC_ASSERT
-			/// Cast between unknown types.
-			/// This is just a no-op function to issue a compiler error when trying to cast between non-half types.
-			/// \param arg value to cast
-			/// \return nothing
-			template<typename T,typename U,std::float_round_style R> T half_caster<T,U,R>::cast(const U &arg)
-			{
-				static_assert(false, "unsupported half cast");
-			}
-		#endif
-*/
 		/// Cast to half.
 		/// \param arg value to cast
 		/// \return \a arg converted to half-precision (via single-precision)
@@ -1927,9 +1882,9 @@ namespace half_float
 		/// \param y second operand
 		/// \param z third operand
 		/// \return ( \a x * \a y ) + \a z rounded as one operation.
-		template<typename X,typename Y,typename Z> float_half_expr fma(const half_expr<X> &x, const half_expr<Y> &y, const half_expr<Y> &z)
+		template<typename X,typename Y,typename Z> float_half_expr fma(const half_expr<X> &x, const half_expr<Y> &y, const half_expr<Z> &z)
 		{
-		#if HALF_ENABLE_CPP11_CMATH
+		#if HALF_ENABLE_CPP11_CMATH && defined(FP_FAST_FMAF)
 			return float_half_expr(std::fma(static_cast<float>(x), static_cast<float>(y), static_cast<float>(z)));
 		#else
 			return float_half_expr(static_cast<float>(x)*static_cast<float>(y)+static_cast<float>(z));

@@ -36,9 +36,9 @@
 #define HUGE_VALH		std::numeric_limits<half_float::half>::infinity()
 
 /// Fast half-precision fma function.
-/// This symbol is only defined if the fma() function generally executes as fast as, or faster than, a separate half-precision 
-/// multiplication followed by an addition. Due to the internal single-precision implementation of this function, it is only 
-/// defined if the corresponding `FP_FAST_FMAF` symbol from `<cmath>` is defined or C++11 `<cmath>` functions are not supported.
+/// This symbol is only defined if the fma() function generally executes as fast as, or faster than, a separate 
+/// half-precision multiplication followed by an addition. Due to the internal single-precision implementation of all 
+/// arithmetic operations, this is usually always the case.
 ///
 /// **See also:** Documentation for [FP_FAST_FMA](http://en.cppreference.com/w/cpp/numeric/math/fma)
 #define FP_FAST_FMAH	1
@@ -68,9 +68,8 @@ namespace half_float
 	///
 	/// So if your C++ implementation is not totally exotic or imposes special alignment requirements, it is a reasonable 
 	/// assumption that the data of a half is just comprised of the 2 bytes of the underlying IEEE representation.
-	class half
+	struct half
 	{
-	public:
 		/// \name Construction and assignment
 		/// \{
 
@@ -172,14 +171,6 @@ namespace half_float
 		/// \return non-decremented half value
 		half operator--(int);
 		/// \}
-
-	private:
-		/// Constructor.
-		/// \param bits binary representation to set half to
-		half(std::uint16_t bits, bool);
-
-		/// Internal binary representation
-		std::uint16_t data_;
 	};
 
 
@@ -327,7 +318,8 @@ namespace half_float
 	half remquo(half x, half y, int *quo);
 
 	/// Fused multiply add.
-	/// This function uses the underlying single-precision implementation if C++11 `<cmath>` functions are supported.
+	/// This function uses the underlying single-precision implementation from C++11 `<cmath>` if it is supported **and** 
+	/// faster than the straight-forward single-precision implementation (thus if `FP_FAST_FMAF` is defined).
 	/// \param x first operand
 	/// \param y second operand
 	/// \param z third operand
@@ -826,9 +818,8 @@ namespace std
 	/// `std::numeric_limits<float>`.
 	///
 	/// **See also:** Documentation for [std::numeric_limits](http://en.cppreference.com/w/cpp/types/numeric_limits)
-	template<> class numeric_limits<half_float::half> : public std::numeric_limits<float>
+	template<> struct numeric_limits<half_float::half> : public std::numeric_limits<float>
 	{
-	public:
 		/// Supports signed values.
 		static constexpr bool is_signed = true;
 
