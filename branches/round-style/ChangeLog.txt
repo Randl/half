@@ -1,10 +1,15 @@
 Release Notes											{#changelog}
 =============
 
+- Made `fma` function use default implementation if single-precision version 
+  from `<cmath>` is not faster and thus `FP_FAST_FMAH` to be defined always.
+- Fixed declaration of `fma` function.
+
+
 1.7.0 release (2012-10-26):
 ---------------------------
 
-- Added support for C++11 `noexcept` specifiers
+- Added support for C++11 `noexcept` specifiers.
 - Changed C++11 `long long` to be supported on *VC++ 2003* and up.
 
 
