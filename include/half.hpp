@@ -940,15 +940,15 @@ namespace half_float
 #endif
 
 #if HALF_SSE_VERSION >= 2
+	/// Functions for SIMD handling of half-precision floats.
 	namespace simd
 	{
-		/// Convert packed single-precision SSE-vector to packed half-precision.
+		/// Convert packed single-precision SSE-vector to half-precision.
 		/// \param values packed single-precision SSE-vector
 		/// \return corresponding half-precision values packed as `(0, 0, 0, 0, h3, h2, h1, h0)`
 		inline __m128i mm_cvtps_ph(__m128 values)
 		{
-			union ps2pi { __m128 ps; __m128i pi; };
-			ps2pi value;
+			union { __m128 ps; __m128i pi; } value;
 			value.ps = values;
 			__m128i sign = _mm_and_si128(_mm_set1_epi32(0x80000000), value.pi);
 			value.pi = _mm_xor_si128(value.pi, sign);
@@ -969,14 +969,13 @@ namespace half_float
 		/// \return corresponding packed single-precision SSE-vector
 		inline __m128 mm_cvtph_ps(__m128i values)
 		{
-			union ps2pi { __m128 ps; __m128i pi; };
-			ps2pi value, prod;
+			union { __m128 ps; __m128i pi; } value, prod;
 			value.pi = _mm_unpacklo_epi16(values, _mm_setzero_si128());
 			__m128i sign = _mm_and_si128(_mm_set1_epi32(0x8000), value.pi);
 			value.pi = _mm_xor_si128(value.pi, sign);
 			value.pi = _mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(_mm_add_epi32(_mm_set1_epi32(0x0001C000), value.pi), value.pi), _mm_cmplt_epi32(_mm_set1_epi32(0x000003FF), value.pi)));
 			value.pi = _mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(_mm_add_epi32(_mm_set1_epi32(0x0001C000), value.pi), value.pi), _mm_cmplt_epi32(_mm_set1_epi32(0x00023BFF), value.pi)));
-			prod.ps = _mm_mul_ps(_mm_set1_ps(1.0f/16777216.0f), _mm_cvtepi32_ps(value.pi));
+			prod.ps = _mm_mul_ps(_mm_set1_ps(5.9604644775390625e-8f/*1.0f/16777216.0f*/), _mm_cvtepi32_ps(value.pi));
 			__m128i mask = _mm_cmpgt_epi32(_mm_set1_epi32(0x00000400), value.pi);
 			value.pi = _mm_slli_epi32(value.pi, 13);
 			value.pi = _mm_or_si128(_mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(prod.pi, value.pi), mask)), _mm_slli_epi32(sign, 16));
