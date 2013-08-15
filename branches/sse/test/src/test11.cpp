@@ -131,7 +131,7 @@ public:
 	{
 		//test size
 		simple_test("size", []() { return sizeof(half)*CHAR_BIT >= 16; });
-/*
+
 		//test conversion
 		unary_test("conversion", [](half arg) { return comp(static_cast<half>(static_cast<float>(arg)), arg); });
 
@@ -384,7 +384,7 @@ public:
 		simple_test("literals", []() -> bool { using namespace half_float::literal; return comp(0.0_h, half(0.0f)) && comp(-1.0_h, half(-1.0f)) && 
 			comp(+3.14159265359_h, half(3.14159265359f)) && comp(1e-2_h, half(1e-2f)) && comp(-4.2e3_h, half(-4.2e3)); });
 	#endif
-*/
+
 	#if HALF_SSE_VERSION >= 2
 		//test SSE
 		simple_test("_mm_cvtps_ph", []() -> bool {
