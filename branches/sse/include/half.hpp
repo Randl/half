@@ -70,6 +70,13 @@
 			#define HALF_ENABLE_CPP11_LONG_LONG 1
 		#endif
 	#endif
+	#if !defined(HALF_SSE_VERSION)
+		#if defined(__SSE2__)
+			#define HALF_SSE_VERSION 2
+		#elif defined(__SSE__)
+			#define HALF_SSE_VERSION 1
+		#endif
+	#endif
 #elif defined(_MSC_VER)										//Visual C++
 	#if _MSC_VER >= 1600 && !defined(HALF_ENABLE_CPP11_STATIC_ASSERT)
 		#define HALF_ENABLE_CPP11_STATIC_ASSERT 1
@@ -939,10 +946,10 @@ namespace half_float
 	}
 #endif
 
-#if HALF_SSE_VERSION >= 2
 	/// Functions for SIMD handling of half-precision floats.
 	namespace simd
 	{
+#if HALF_SSE_VERSION >= 2
 		/// Convert packed single-precision SSE-vector to half-precision.
 		/// \param values packed single-precision SSE-vector
 		/// \return corresponding half-precision values packed as `(0, 0, 0, 0, h3, h2, h1, h0)`
@@ -981,8 +988,28 @@ namespace half_float
 			value.pi = _mm_or_si128(_mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(prod.pi, value.pi), mask)), _mm_slli_epi32(sign, 16));
 			return value.ps;
 		}
-	}
 #endif
+
+#if HALF_ENABLE_ALTIVEC
+		inline vector unsigned short vec_cth(vector float values)
+		{
+		}
+
+		inline vector float vec_ctf(vector short values)
+		{
+			vector int value = vec_unpackl(values);
+			__m128i sign = _mm_and_si128(_mm_set1_epi32(0x8000), value.pi);
+			value.pi = _mm_xor_si128(value.pi, sign);
+			value.pi = _mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(_mm_add_epi32(_mm_set1_epi32(0x0001C000), value.pi), value.pi), _mm_cmplt_epi32(_mm_set1_epi32(0x000003FF), value.pi)));
+			value.pi = _mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(_mm_add_epi32(_mm_set1_epi32(0x0001C000), value.pi), value.pi), _mm_cmplt_epi32(_mm_set1_epi32(0x00023BFF), value.pi)));
+			vector float prod = vec_madd(_mm_set1_ps(5.9604644775390625e-8f/*1.0f/16777216.0f*/), vec_ctf(value, 0), (vector float)vec_splat_u32(0));
+			vector int mask = vec_cmpgt(_mm_set1_epi32(0x00000400), value);
+			value = vec_sl(value, vec_splat_u32(13));
+			value.pi = vec_or(vec_xor(value, vec_and(vec_xor((vector int)prod, value), mask)), _mm_slli_epi32(sign, 16));
+			return (vector float)value;
+		}
+#endif
+	}
 
 	namespace detail
 	{
