@@ -42,6 +42,11 @@
 	#if (defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L) && !defined(HALF_ENABLE_CPP11_LONG_LONG)
 		#define HALF_ENABLE_CPP11_LONG_LONG 1
 	#endif
+	#if defined(__VEC__) && !defined(HALF_ENABLE_ALTIVEC)
+		#define HALF_ENABLE_ALTIVEC 1
+		#define HALF_ALTIVEC_INT_LITERAL(x) (vector signed int)(x)
+		#define HALF_ALTIVEC_FLOAT_LITERAL(x) (vector float)(x)
+	#endif
 /*#elif defined(__INTEL_COMPILER)								//Intel C++
 	#if __INTEL_COMPILER >= 1100 && !defined(HALF_ENABLE_CPP11_STATIC_ASSERT)
 		#define HALF_ENABLE_CPP11_STATIC_ASSERT 1
@@ -70,12 +75,10 @@
 			#define HALF_ENABLE_CPP11_LONG_LONG 1
 		#endif
 	#endif
-	#if !defined(HALF_SSE_VERSION)
-		#if defined(__SSE2__)
-			#define HALF_SSE_VERSION 2
-		#elif defined(__SSE__)
-			#define HALF_SSE_VERSION 1
-		#endif
+	#if defined(__VEC__) && !defined(HALF_ENABLE_ALTIVEC)
+		#define HALF_ENABLE_ALTIVEC 1
+		#define HALF_ALTIVEC_INT_LITERAL(x) (vector signed int){x}
+		#define HALF_ALTIVEC_FLOAT_LITERAL(x) (vector float){x}
 	#endif
 #elif defined(_MSC_VER)										//Visual C++
 	#if _MSC_VER >= 1600 && !defined(HALF_ENABLE_CPP11_STATIC_ASSERT)
@@ -84,8 +87,20 @@
 	#if _MSC_VER >= 1310 && !defined(HALF_ENABLE_CPP11_LONG_LONG)
 		#define HALF_ENABLE_CPP11_LONG_LONG 1
 	#endif
-	#if !defined(HALF_SSE_VERSION)
-		#define HALF_SSE_VERSION _M_IX86_FP
+	#ifndef HALF_ENABLE_SSE
+		#define HALF_ENABLE_SSE _M_IX86_FP
+	#endif
+#endif
+#if defined(__clang__) || defined(__GNUC__)
+	#ifndef HALF_ENABLE_SSE
+		#if defined(__SSE2__)
+			#define HALF_ENABLE_SSE 2
+		#elif defined(__SSE__)
+			#define HALF_ENABLE_SSE 1
+		#endif
+	#endif
+	#if defined(__ARM_NEON__) && !defined(HALF_ENABLE_NEON)
+		#define HALF_ENABLE_NEON 1
 	#endif
 #endif
 
@@ -169,12 +184,19 @@
 #if HALF_ENABLE_CPP11_CSTDINT
 	#include <cstdint>
 #endif
-#if HALF_SSE_VERSION >= 1
+#if HALF_ENABLE_SSE >= 1
 	#include <xmmintrin.h>
-	#if HALF_SSE_VERSION >= 2
+	#if HALF_ENABLE_SSE >= 2
 		#include <emmintrin.h>
 	#endif
 #endif
+#if HALF_ENABLE_ALTIVEC
+	#include <altivec.h>
+#endif
+#if HALF_ENABLE_NEON
+	#include <arm_neon.h>
+#endif
+
 
 
 /// Value signaling overflow.
@@ -949,7 +971,7 @@ namespace half_float
 	/// Functions for SIMD handling of half-precision floats.
 	namespace simd
 	{
-#if HALF_SSE_VERSION >= 2
+#if HALF_ENABLE_SSE >= 2
 		/// Convert packed single-precision SSE-vector to half-precision.
 		/// \param values packed single-precision SSE-vector
 		/// \return corresponding half-precision values packed as `(0, 0, 0, 0, h3, h2, h1, h0)`
@@ -993,20 +1015,66 @@ namespace half_float
 #if HALF_ENABLE_ALTIVEC
 		inline vector unsigned short vec_cth(vector float values)
 		{
+			vector signed int value = (vector signed int)values;
+			vector signed int sign = vec_and(HALF_ALTIVEC_INT_LITERAL(0x80000000), value);
+			value = vec_xor(value, sign);
+			vector signed int prod = vec_cts(vec_madd((vector float)(HALF_ALTIVEC_INT_LITERAL(0x52000000)), (vector float)value, HALF_ALTIVEC_FLOAT_LITERAL(0.0f)), 0);
+			value = vec_xor(value, vec_and(vec_xor(prod, value), vec_cmpgt(HALF_ALTIVEC_INT_LITERAL(0x38800000), value)));
+			const vector signed int inf = HALF_ALTIVEC_INT_LITERAL(0x7F800000);
+			value = vec_xor(value, vec_and(vec_xor(inf, value), vec_and(vec_cmpgt(inf, value), vec_cmplt(HALF_ALTIVEC_INT_LITERAL(0x477FFFFF), value))));
+			const vector signed int nan = HALF_ALTIVEC_INT_LITERAL(0x7F802000);
+			value = vec_xor(value, vec_and(vec_xor(nan, value), vec_and(vec_cmpgt(nan, value), vec_cmplt(inf, value))));
+			value = vec_sr(value, vec_splat_u32(13));
+			value = vec_xor(value, vec_and(vec_xor(vec_sub(value, HALF_ALTIVEC_INT_LITERAL(0x0001C000)), value), vec_cmplt(HALF_ALTIVEC_INT_LITERAL(0x00023BFF), value)));
+			value = vec_xor(value, vec_and(vec_xor(vec_sub(value, HALF_ALTIVEC_INT_LITERAL(0x0001C000)), value), vec_cmplt(HALF_ALTIVEC_INT_LITERAL(0x000003FF), value)));
+			return (vector unsigned short)vec_packs(vec_splat_s32(0), vec_or(value, vec_sra(sign, vec_splat_u32(16))));
 		}
 
-		inline vector float vec_ctf(vector short values)
+		inline vector float vec_ctf(vector unsigned short values)
 		{
-			vector int value = vec_unpackl(values);
-			__m128i sign = _mm_and_si128(_mm_set1_epi32(0x8000), value.pi);
-			value.pi = _mm_xor_si128(value.pi, sign);
-			value.pi = _mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(_mm_add_epi32(_mm_set1_epi32(0x0001C000), value.pi), value.pi), _mm_cmplt_epi32(_mm_set1_epi32(0x000003FF), value.pi)));
-			value.pi = _mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(_mm_add_epi32(_mm_set1_epi32(0x0001C000), value.pi), value.pi), _mm_cmplt_epi32(_mm_set1_epi32(0x00023BFF), value.pi)));
-			vector float prod = vec_madd(_mm_set1_ps(5.9604644775390625e-8f/*1.0f/16777216.0f*/), vec_ctf(value, 0), (vector float)vec_splat_u32(0));
-			vector int mask = vec_cmpgt(_mm_set1_epi32(0x00000400), value);
+			vector signed int value = vec_unpackl((vector signed short)values);
+			vector signed int sign = vec_and(HALF_ALTIVEC_INT_LITERAL(0x80000000), value);
+			value = vec_and(value, HALF_ALTIVEC_INT_LITERAL(0x7FFF));
+			value = vec_xor(value, vec_and(vec_xor(vec_add(HALF_ALTIVEC_INT_LITERAL(0x0001C000), value), value), vec_cmplt(HALF_ALTIVEC_INT_LITERAL(0x000003FF), value)));
+			value = vec_xor(value, vec_and(vec_xor(vec_add(HALF_ALTIVEC_INT_LITERAL(0x0001C000), value), value), vec_cmplt(HALF_ALTIVEC_INT_LITERAL(0x00023BFF), value)));
+			vector float prod = vec_madd((vector float)(HALF_ALTIVEC_INT_LITERAL(0x33800000)), vec_ctf(value, 0), HALF_ALTIVEC_FLOAT_LITERAL(0.0f));
+			vector bool int mask = vec_cmpgt(HALF_ALTIVEC_INT_LITERAL(0x00000400), value);
 			value = vec_sl(value, vec_splat_u32(13));
-			value.pi = vec_or(vec_xor(value, vec_and(vec_xor((vector int)prod, value), mask)), _mm_slli_epi32(sign, 16));
+			value = vec_or(vec_xor(value, vec_and(vec_xor(HALF_ALTIVEC_INT_LITERALprod, value), mask)), sign);
 			return (vector float)value;
+		}
+#endif
+
+#if HALF_ENABLE_NEON
+		inline uint16x4_t vcvt_f16_f32(float32x4_t values)
+		{
+			uint32x4_t value = vreinterpretq_u32_f32(values);
+			uint32x4_t sign = vandq_u32(vdupq_n_u32(0x80000000), value);
+			value = veorq_u32(value, sign);
+			uint32x4_t prod = vcvtq_u32_f32(vmulq_f32(vreinterpretq_f32_u32(vdupq_n_u32(0x52000000)), vreinterpretq_f32_u32(value)));
+			value = veorq_u32(value, vandq_u32(veorq_u32(prod, value), vcgtq_u32(vdupq_n_u32(0x38800000), value)));
+			const uint32x4_t inf = vdupq_n_u32(0x7F800000);
+			value = veorq_u32(value, vandq_u32(veorq_u32(inf, value), vandq_u32(vcgtq_u32(inf, value), vcltq_u32(vdupq_n_u32(0x477FFFFF), value))));
+			const uint32x4_t nan = vdupq_n_u32(0x7F802000);
+			value = veorq_u32(value, vandq_u32(veorq_u32(nan, value), vandq_u32(vcgtq_u32(nan, value), vcltq_u32(inf, value))));
+			value = vshrq_n_u32(value, 13);
+			value = veorq_u32(value, vandq_u32(veorq_u32(vsubq_u32(value, vdupq_n_u32(0x0001C000)), value), vcltq_u32(vdupq_n_u32(0x00023BFF), value)));
+			value = veorq_u32(value, vandq_u32(veorq_u32(vsubq_u32(value, vdupq_n_u32(0x0001C000)), value), vcltq_u32(vdupq_n_u32(0x000003FF), value)));
+			return vmovn_u32(vorrq_u32(value, vshrq_n_u32(sign, 16)));
+		}
+
+		inline float32x4_t vcvt_f32_f16(uint16x4_t values)
+		{
+			uint32x4_t value = vmovl_u16(values);
+			uint32x4_t sign = vandq_u32(vdupq_n_u32(0x8000), value);
+			value = veorq_u32(value, sign);
+			value = veorq_u32(value, vandq_u32(veorq_s32(vaddq_u32(vdupq_n_u32(0x0001C000), value), value), vcltq_u32(vdupq_n_u32(0x000003FF), value)));
+			value = veorq_u32(value, vandq_u32(veorq_s32(vaddq_u32(vdupq_n_u32(0x0001C000), value), value), vcltq_u32(vdupq_n_u32(0x00023BFF), value)));
+			float32x4_t prod = vmulq_f32(vreinterpretq_f32_u32(vdupq_n_u32(0x33800000)), vcvtq_f32_u32(value));
+			uint32x4_t mask = vcgtq_u32(vdupq_n_u32(0x00000400), value);
+			value = vshlq_n_u32(value, 13);
+			value = vorrq_u32(veorq_u32(value, vandq_u32(veorq_u32(vreinterpretq_u32_f32(prod), value), mask)), vshlq_n_u32(sign, 16));
+			return vreinterpretq_f32_u32(value);
 		}
 #endif
 	}
@@ -2687,5 +2755,11 @@ namespace std
 #undef HALF_CONSTEXPR_CONST
 #undef HALF_NOEXCEPT
 #undef HALF_NOTHROW
+#ifdef HALF_ALTIVEC_INT_LITERAL
+	#undef HALF_ALTIVEC_INT_LITERAL
+#endif
+#ifdef HALF_ALTIVEC_FLOAT_LITERAL
+	#undef HALF_ALTIVEC_FLOAT_LITERAL
+#endif
 
 #endif
