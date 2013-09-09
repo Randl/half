@@ -1013,6 +1013,9 @@ namespace half_float
 #endif
 
 #if HALF_ENABLE_ALTIVEC
+		/// Convert packed single-precision AltiVec-vector to half-precision.
+		/// \param values packed single-precision AltiVec-vector
+		/// \return corresponding half-precision values packed as `(0, 0, 0, 0, h3, h2, h1, h0)`
 		inline vector unsigned short vec_cth(vector float values)
 		{
 			vector signed int value = (vector signed int)values;
@@ -1030,6 +1033,9 @@ namespace half_float
 			return (vector unsigned short)vec_packs(vec_splat_s32(0), vec_or(value, vec_sra(sign, vec_splat_u32(16))));
 		}
 
+		/// Convert packed half-precision AltiVec-vector to single-precision.
+		/// \param values half-precision values packed as `(X, X, X, X, h3, h2, h1, h0)`
+		/// \return corresponding packed single-precision AltiVec-vector
 		inline vector float vec_ctf(vector unsigned short values)
 		{
 			vector signed int value = vec_unpackl((vector signed short)values);
@@ -1046,6 +1052,9 @@ namespace half_float
 #endif
 
 #if HALF_ENABLE_NEON
+		/// Convert packed single-precision NEON-vector to half-precision.
+		/// \param values packed single-precision NEON-vector
+		/// \return corresponding packed half-precision values
 		inline uint16x4_t vcvt_f16_f32(float32x4_t values)
 		{
 			uint32x4_t value = vreinterpretq_u32_f32(values);
@@ -1063,6 +1072,9 @@ namespace half_float
 			return vmovn_u32(vorrq_u32(value, vshrq_n_u32(sign, 16)));
 		}
 
+		/// Convert packed half-precision NEON-vector to single-precision.
+		/// \param values packed half-precision NEON-vector
+		/// \return corresponding packed single-precision vector
 		inline float32x4_t vcvt_f32_f16(uint16x4_t values)
 		{
 			uint32x4_t value = vmovl_u16(values);
