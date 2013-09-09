@@ -42,6 +42,16 @@
 	#if (defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L) && !defined(HALF_ENABLE_CPP11_LONG_LONG)
 		#define HALF_ENABLE_CPP11_LONG_LONG 1
 	#endif
+	#ifndef HALF_ENABLE_SSE
+		#if defined(__SSE2__)
+			#define HALF_ENABLE_SSE 2
+		#elif defined(__SSE__)
+			#define HALF_ENABLE_SSE 1
+		#endif
+	#endif
+	#if defined(__ARM_NEON__) && !defined(HALF_ENABLE_NEON)
+		#define HALF_ENABLE_NEON 1
+	#endif
 	#if defined(__VEC__) && !defined(HALF_ENABLE_ALTIVEC)
 		#define HALF_ENABLE_ALTIVEC 1
 		#define HALF_ALTIVEC_INT_LITERAL(x) (vector signed int)(x)
@@ -56,6 +66,13 @@
 	#endif
 	#if !defined(HALF_ENABLE_CPP11_LONG_LONG)
 		#define HALF_ENABLE_CPP11_LONG_LONG 1
+	#endif
+	#ifndef HALF_ENABLE_SSE
+		#if defined(__SSE2__)
+			#define HALF_ENABLE_SSE 2
+		#elif defined(__SSE__)
+			#define HALF_ENABLE_SSE 1
+		#endif
 	#endif*/
 #elif defined(__GNUC__)										//gcc
 	#if defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L
@@ -75,6 +92,16 @@
 			#define HALF_ENABLE_CPP11_LONG_LONG 1
 		#endif
 	#endif
+	#ifndef HALF_ENABLE_SSE
+		#if defined(__SSE2__)
+			#define HALF_ENABLE_SSE 2
+		#elif defined(__SSE__)
+			#define HALF_ENABLE_SSE 1
+		#endif
+	#endif
+	#if defined(__ARM_NEON__) && !defined(HALF_ENABLE_NEON)
+		#define HALF_ENABLE_NEON 1
+	#endif
 	#if defined(__VEC__) && !defined(HALF_ENABLE_ALTIVEC)
 		#define HALF_ENABLE_ALTIVEC 1
 		#define HALF_ALTIVEC_INT_LITERAL(x) (vector signed int){x}
@@ -87,20 +114,8 @@
 	#if _MSC_VER >= 1310 && !defined(HALF_ENABLE_CPP11_LONG_LONG)
 		#define HALF_ENABLE_CPP11_LONG_LONG 1
 	#endif
-	#ifndef HALF_ENABLE_SSE
+	#if defined(_M_IX86_FP) && !defined(HALF_ENABLE_SSE)
 		#define HALF_ENABLE_SSE _M_IX86_FP
-	#endif
-#endif
-#if defined(__clang__) || defined(__GNUC__)
-	#ifndef HALF_ENABLE_SSE
-		#if defined(__SSE2__)
-			#define HALF_ENABLE_SSE 2
-		#elif defined(__SSE__)
-			#define HALF_ENABLE_SSE 1
-		#endif
-	#endif
-	#if defined(__ARM_NEON__) && !defined(HALF_ENABLE_NEON)
-		#define HALF_ENABLE_NEON 1
 	#endif
 #endif
 
