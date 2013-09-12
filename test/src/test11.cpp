@@ -387,7 +387,7 @@ public:
 
 	#if HALF_SSE_VERSION >= 2
 		//test SSE
-		simple_test("_mm_cvtps_ph", []() -> bool {
+		simple_test("mm_cvtps_ph", []() -> bool {
 			auto b2f = [](std::uint32_t bits) { return *reinterpret_cast<float*>(&bits); };
 			for(unsigned long long u=0; u<std::numeric_limits<std::uint32_t>::max(); u+=256)
 			{
@@ -395,14 +395,11 @@ public:
 				_mm_storeu_si128(reinterpret_cast<__m128i*>(halfs), half_float::simd::mm_cvtps_ph(_mm_set_ps(b2f(u+3), b2f(u+2), b2f(u+1), b2f(u))));
 				for(unsigned int i=0; i<4; ++i)
 					if(halfs[i] != static_cast<half>(b2f(u+i)) && !(isnan(halfs[i]) && half_float::detail::builtin_isnan(b2f(u+i))))
-					{
-						std::cout << std::hex << (u+i) << ": " << b2f(u+i) << " = " << static_cast<half>(b2f(u+i)) << " != " << halfs[i] << " = " << h2b(halfs[i]) << std::dec << '\n';
 						return false;
-					}
 			}
 			return true;
 		});
-		simple_test("_mm_cvtph_ps", []() -> bool {
+		simple_test("mm_cvtph_ps", []() -> bool {
 			for(unsigned long u=0; u<std::numeric_limits<std::uint16_t>::max(); u+=4)
 			{
 				float floats[4];
