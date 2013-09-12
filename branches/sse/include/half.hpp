@@ -22,6 +22,8 @@
 #ifndef HALF_HALF_HPP
 #define HALF_HALF_HPP
 
+//#define HALF_ENABLE_NEON 1
+
 /// Combined gcc version number.
 #define HALF_GNUC_VERSION (__GNUC__*100+__GNUC_MINOR__)
 
@@ -54,8 +56,7 @@
 	#endif
 	#if defined(__VEC__) && !defined(HALF_ENABLE_ALTIVEC)
 		#define HALF_ENABLE_ALTIVEC 1
-		#define HALF_ALTIVEC_INT_LITERAL(x) (vector signed int)(x)
-		#define HALF_ALTIVEC_FLOAT_LITERAL(x) (vector float)(x)
+		#define HALF_ALTIVEC_LITERAL(x) (vector unsigned int)(x)
 	#endif
 /*#elif defined(__INTEL_COMPILER)								//Intel C++
 	#if __INTEL_COMPILER >= 1100 && !defined(HALF_ENABLE_CPP11_STATIC_ASSERT)
@@ -104,8 +105,7 @@
 	#endif
 	#if defined(__VEC__) && !defined(HALF_ENABLE_ALTIVEC)
 		#define HALF_ENABLE_ALTIVEC 1
-		#define HALF_ALTIVEC_INT_LITERAL(x) (vector signed int){x}
-		#define HALF_ALTIVEC_FLOAT_LITERAL(x) (vector float){x}
+		#define HALF_ALTIVEC_LITERAL(x) (vector unsigned int){x}
 	#endif
 #elif defined(_MSC_VER)										//Visual C++
 	#if _MSC_VER >= 1600 && !defined(HALF_ENABLE_CPP11_STATIC_ASSERT)
@@ -998,9 +998,8 @@ namespace half_float
 			value.pi = _mm_xor_si128(value.pi, sign);
 			__m128i prod = _mm_cvttps_epi32(_mm_mul_ps(_mm_set1_ps(137438953472.0f), value.ps));
 			value.pi = _mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(prod, value.pi), _mm_cmpgt_epi32(_mm_set1_epi32(0x38800000), value.pi)));
-			const __m128i inf = _mm_set1_epi32(0x7F800000);
+			const __m128i inf = _mm_set1_epi32(0x7F800000), nan = _mm_set1_epi32(0x7F802000);
 			value.pi = _mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(inf, value.pi), _mm_and_si128(_mm_cmpgt_epi32(inf, value.pi), _mm_cmplt_epi32(_mm_set1_epi32(0x477FFFFF), value.pi))));
-			const __m128i nan = _mm_set1_epi32(0x7F802000);
 			value.pi = _mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(nan, value.pi), _mm_and_si128(_mm_cmpgt_epi32(nan, value.pi), _mm_cmplt_epi32(inf, value.pi))));
 			value.pi = _mm_srli_epi32(value.pi, 13);
 			value.pi = _mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(_mm_sub_epi32(value.pi, _mm_set1_epi32(0x0001C000)), value.pi), _mm_cmplt_epi32(_mm_set1_epi32(0x00023BFF), value.pi)));
@@ -1019,11 +1018,94 @@ namespace half_float
 			value.pi = _mm_xor_si128(value.pi, sign);
 			value.pi = _mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(_mm_add_epi32(_mm_set1_epi32(0x0001C000), value.pi), value.pi), _mm_cmplt_epi32(_mm_set1_epi32(0x000003FF), value.pi)));
 			value.pi = _mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(_mm_add_epi32(_mm_set1_epi32(0x0001C000), value.pi), value.pi), _mm_cmplt_epi32(_mm_set1_epi32(0x00023BFF), value.pi)));
-			prod.ps = _mm_mul_ps(_mm_set1_ps(5.9604644775390625e-8f/*1.0f/16777216.0f*/), _mm_cvtepi32_ps(value.pi));
+			prod.pi = _mm_set1_epi32(0x33800000);
+			prod.ps = _mm_mul_ps(prod.ps, _mm_cvtepi32_ps(value.pi));
 			__m128i mask = _mm_cmpgt_epi32(_mm_set1_epi32(0x00000400), value.pi);
 			value.pi = _mm_slli_epi32(value.pi, 13);
 			value.pi = _mm_or_si128(_mm_xor_si128(value.pi, _mm_and_si128(_mm_xor_si128(prod.pi, value.pi), mask)), _mm_slli_epi32(sign, 16));
 			return value.ps;
+		}
+
+		inline __m128i mm_cmpeq_ph(__m128i a, __m128i b)
+		{
+			__m128i absa = _mm_and_si128(_mm_set1_epi16(0x7FFF), a), absb = _mm_and_si128(_mm_set1_epi16(0x7FFF), b);
+			return _mm_and_si128(_mm_or_si128(_mm_cmpeq_epi16(a, b), _mm_cmpeq_epi16(_mm_setzero_si128(), _mm_or_si128(absa, absb))), _mm_cmpgt_epi16(_mm_set1_epi16(0x7C01), absa));
+		}
+
+		inline __m128i mm_cmplt_ph(__m128i a, __m128i b)
+		{
+			__m128i signa = _mm_srai_epi16(a, 15), signb = _mm_srai_epi16(b, 15);
+			return _mm_and_si128(_mm_cmplt_epi16(_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), a), signa), _mm_andnot_si128(signa, a)), 
+												 _mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), b), signb), _mm_andnot_si128(signb, b))), 
+								 _mm_and_si128(_mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), a), _mm_set1_epi16(0x7C01)), 
+											   _mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), b), _mm_set1_epi16(0x7C01))));
+		}
+
+		inline __m128i mm_cmple_ph(__m128i a, __m128i b)
+		{
+			__m128i signa = _mm_srai_epi16(a, 15), signb = _mm_srai_epi16(b, 15);
+			return _mm_andnot_si128(_mm_cmpgt_epi16(_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), a), signa), _mm_andnot_si128(signa, a)), 
+													_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), b), signb), _mm_andnot_si128(signb, b))), 
+									_mm_and_si128(_mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), a), _mm_set1_epi16(0x7C01)), 
+												  _mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), b), _mm_set1_epi16(0x7C01))));
+		}
+
+		inline __m128i mm_cmpgt_ph(__m128i a, __m128i b)
+		{
+			__m128i signa = _mm_srai_epi16(a, 15), signb = _mm_srai_epi16(b, 15);
+			return _mm_and_si128(_mm_cmpgt_epi16(_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), a), signa), _mm_andnot_si128(signa, a)), 
+												 _mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), b), signb), _mm_andnot_si128(signb, b))), 
+								 _mm_and_si128(_mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), a), _mm_set1_epi16(0x7C01)), 
+											   _mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), b), _mm_set1_epi16(0x7C01))));
+		}
+
+		inline __m128i mm_cmpge_ph(__m128i a, __m128i b)
+		{
+			__m128i signa = _mm_srai_epi16(a, 15), signb = _mm_srai_epi16(b, 15);
+			return _mm_andnot_si128(_mm_cmplt_epi16(_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), a), signa), _mm_andnot_si128(signa, a)), 
+													_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), b), signb), _mm_andnot_si128(signb, b))), 
+									_mm_and_si128(_mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), a), _mm_set1_epi16(0x7C01)), 
+												  _mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), b), _mm_set1_epi16(0x7C01))));
+		}
+
+		inline __m128i mm_cmpneq_ph(__m128i a, __m128i b)
+		{
+			__m128i absa = _mm_and_si128(_mm_set1_epi16(0x7FFF), a), absb = _mm_and_si128(_mm_set1_epi16(0x7FFF), b);
+			return _mm_or_si128(_mm_andnot_si128(_mm_cmpeq_epi16(a, b), _mm_cmplt_epi16(_mm_setzero_si128(), _mm_or_si128(absa, absb))), _mm_cmplt_epi16(_mm_set1_epi16(0x7C00), absa));
+		}
+
+		inline __m128i mm_cmpnlt_ph(__m128i a, __m128i b) { return _mm_xor_si128(_mm_set1_epi32(0xFFFFFFFF), mm_cmpgt_ph(a, b)); }
+
+		inline __m128i mm_cmpnle_ph(__m128i a, __m128i b)
+		{
+			__m128i signa = _mm_srai_epi16(a, 15), signb = _mm_srai_epi16(b, 15);
+			return _mm_or_si128(_mm_cmpgt_epi16(_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), a), signa), _mm_andnot_si128(signa, a)), 
+												_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), b), signb), _mm_andnot_si128(signb, b))), 
+								_mm_or_si128(_mm_cmplt_epi16(_mm_set1_epi16(0x7C00), _mm_and_si128(_mm_set1_epi16(0x7FFF), a)), 
+											 _mm_cmplt_epi16(_mm_set1_epi16(0x7C00), _mm_and_si128(_mm_set1_epi16(0x7FFF), b))));
+		}
+
+		inline __m128i mm_cmpngt_ph(__m128i a, __m128i b) { return _mm_xor_si128(_mm_set1_epi32(0xFFFFFFFF), mm_cmpgt_ph(a, b)); }
+
+		inline __m128i mm_cmpnge_ph(__m128i a, __m128i b)
+		{
+			__m128i signa = _mm_srai_epi16(a, 15), signb = _mm_srai_epi16(b, 15);
+			return _mm_or_si128(_mm_cmplt_epi16(_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), a), signa), _mm_andnot_si128(signa, a)), 
+												_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), b), signb), _mm_andnot_si128(signb, b))), 
+								_mm_or_si128(_mm_cmplt_epi16(_mm_set1_epi16(0x7C00), _mm_and_si128(_mm_set1_epi16(0x7FFF), a)), 
+											 _mm_cmplt_epi16(_mm_set1_epi16(0x7C00), _mm_and_si128(_mm_set1_epi16(0x7FFF), b))));
+		}
+
+		inline __m128i mm_cmpord_ph(__m128i a, __m128i b)
+		{
+			return _mm_and_si128(_mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), a), _mm_set1_epi16(0x7C01)), 
+								 _mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), b), _mm_set1_epi16(0x7C01)));
+		}
+
+		inline __m128i mm_cmpunord_ph(__m128i a, __m128i b)
+		{
+			return _mm_or_si128(_mm_cmplt_epi16(_mm_set1_epi16(0x7C00), _mm_and_si128(_mm_set1_epi16(0x7FFF), a)), 
+								_mm_cmplt_epi16(_mm_set1_epi16(0x7C00), _mm_and_si128(_mm_set1_epi16(0x7FFF), b)));
 		}
 #endif
 
@@ -1033,19 +1115,17 @@ namespace half_float
 		/// \return corresponding half-precision values packed as `(0, 0, 0, 0, h3, h2, h1, h0)`
 		inline vector unsigned short vec_cth(vector float values)
 		{
-			vector signed int value = (vector signed int)values;
-			vector signed int sign = vec_and(HALF_ALTIVEC_INT_LITERAL(0x80000000), value);
+			vector unsigned int value = (vector signed int)values, sign = vec_and(HALF_ALTIVEC_LITERAL(0x80000000), value);
 			value = vec_xor(value, sign);
-			vector signed int prod = vec_cts(vec_madd((vector float)(HALF_ALTIVEC_INT_LITERAL(0x52000000)), (vector float)value, HALF_ALTIVEC_FLOAT_LITERAL(0.0f)), 0);
-			value = vec_xor(value, vec_and(vec_xor(prod, value), vec_cmpgt(HALF_ALTIVEC_INT_LITERAL(0x38800000), value)));
-			const vector signed int inf = HALF_ALTIVEC_INT_LITERAL(0x7F800000);
-			value = vec_xor(value, vec_and(vec_xor(inf, value), vec_and(vec_cmpgt(inf, value), vec_cmplt(HALF_ALTIVEC_INT_LITERAL(0x477FFFFF), value))));
-			const vector signed int nan = HALF_ALTIVEC_INT_LITERAL(0x7F802000);
+			vector unsigned int prod = vec_ctu(vec_madd((vector float)(HALF_ALTIVEC_LITERAL(0x52000000)), (vector float)value, (vector float)vec_splat_u32(0)), 0);
+			value = vec_xor(value, vec_and(vec_xor(prod, value), vec_cmpgt(HALF_ALTIVEC_LITERAL(0x38800000), value)));
+			const vector unsigned int inf = HALF_ALTIVEC_LITERAL(0x7F800000), nan = HALF_ALTIVEC_LITERAL(0x7F802000);
+			value = vec_xor(value, vec_and(vec_xor(inf, value), vec_and(vec_cmpgt(inf, value), vec_cmplt(HALF_ALTIVEC_LITERAL(0x477FFFFF), value))));
 			value = vec_xor(value, vec_and(vec_xor(nan, value), vec_and(vec_cmpgt(nan, value), vec_cmplt(inf, value))));
 			value = vec_sr(value, vec_splat_u32(13));
-			value = vec_xor(value, vec_and(vec_xor(vec_sub(value, HALF_ALTIVEC_INT_LITERAL(0x0001C000)), value), vec_cmplt(HALF_ALTIVEC_INT_LITERAL(0x00023BFF), value)));
-			value = vec_xor(value, vec_and(vec_xor(vec_sub(value, HALF_ALTIVEC_INT_LITERAL(0x0001C000)), value), vec_cmplt(HALF_ALTIVEC_INT_LITERAL(0x000003FF), value)));
-			return (vector unsigned short)vec_packs(vec_splat_s32(0), vec_or(value, vec_sra(sign, vec_splat_u32(16))));
+			value = vec_xor(value, vec_and(vec_xor(vec_sub(value, HALF_ALTIVEC_LITERAL(0x0001C000)), value), vec_cmplt(HALF_ALTIVEC_LITERAL(0x00023BFF), value)));
+			value = vec_xor(value, vec_and(vec_xor(vec_sub(value, HALF_ALTIVEC_LITERAL(0x0001C000)), value), vec_cmplt(HALF_ALTIVEC_LITERAL(0x000003FF), value)));
+			return vec_packs(vec_splat_u32(0), vec_or(value, vec_sr(sign, vec_splat_u32(16))));
 		}
 
 		/// Convert packed half-precision AltiVec-vector to single-precision.
@@ -1053,17 +1133,17 @@ namespace half_float
 		/// \return corresponding packed single-precision AltiVec-vector
 		inline vector float vec_ctf(vector unsigned short values)
 		{
-			vector signed int value = vec_unpackl((vector signed short)values);
-			vector signed int sign = vec_and(HALF_ALTIVEC_INT_LITERAL(0x80000000), value);
-			value = vec_and(value, HALF_ALTIVEC_INT_LITERAL(0x7FFF));
-			value = vec_xor(value, vec_and(vec_xor(vec_add(HALF_ALTIVEC_INT_LITERAL(0x0001C000), value), value), vec_cmplt(HALF_ALTIVEC_INT_LITERAL(0x000003FF), value)));
-			value = vec_xor(value, vec_and(vec_xor(vec_add(HALF_ALTIVEC_INT_LITERAL(0x0001C000), value), value), vec_cmplt(HALF_ALTIVEC_INT_LITERAL(0x00023BFF), value)));
-			vector float prod = vec_madd((vector float)(HALF_ALTIVEC_INT_LITERAL(0x33800000)), vec_ctf(value, 0), HALF_ALTIVEC_FLOAT_LITERAL(0.0f));
-			vector bool int mask = vec_cmpgt(HALF_ALTIVEC_INT_LITERAL(0x00000400), value);
+			vector unsigned int value = (vector unsigned int)vec_unpackl((vector signed short)values), sign = vec_and(HALF_ALTIVEC_LITERAL(0x80000000), value);
+			value = vec_and(value, HALF_ALTIVEC_LITERAL(0x7FFF));
+			value = vec_xor(value, vec_and(vec_xor(vec_add(HALF_ALTIVEC_LITERAL(0x0001C000), value), value), vec_cmplt(HALF_ALTIVEC_LITERAL(0x000003FF), value)));
+			value = vec_xor(value, vec_and(vec_xor(vec_add(HALF_ALTIVEC_LITERAL(0x0001C000), value), value), vec_cmplt(HALF_ALTIVEC_LITERAL(0x00023BFF), value)));
+			vector float prod = vec_madd((vector float)(HALF_ALTIVEC_LITERAL(0x33800000)), vec_ctf(value, 0), (vector float)vec_splat_u32(0));
+			vector bool int mask = vec_cmpgt(HALF_ALTIVEC_LITERAL(0x00000400), value);
 			value = vec_sl(value, vec_splat_u32(13));
-			value = vec_or(vec_xor(value, vec_and(vec_xor(HALF_ALTIVEC_INT_LITERALprod, value), mask)), sign);
-			return (vector float)value;
+			return (vector float)vec_or(vec_xor(value, vec_and(vec_xor((vector unsigned int)prod, value), mask)), sign);
 		}
+
+		inline vector unsigned short vec_abs(vector unsigned short values) { return vec_and(HALF_ALTIVEC_LITERAL16(0x7FFF), values); }
 #endif
 
 #if HALF_ENABLE_NEON
@@ -1072,14 +1152,12 @@ namespace half_float
 		/// \return corresponding packed half-precision values
 		inline uint16x4_t vcvt_f16_f32(float32x4_t values)
 		{
-			uint32x4_t value = vreinterpretq_u32_f32(values);
-			uint32x4_t sign = vandq_u32(vdupq_n_u32(0x80000000), value);
+			uint32x4_t value = vreinterpretq_u32_f32(values), sign = vandq_u32(vdupq_n_u32(0x80000000), value);
 			value = veorq_u32(value, sign);
 			uint32x4_t prod = vcvtq_u32_f32(vmulq_f32(vreinterpretq_f32_u32(vdupq_n_u32(0x52000000)), vreinterpretq_f32_u32(value)));
 			value = veorq_u32(value, vandq_u32(veorq_u32(prod, value), vcgtq_u32(vdupq_n_u32(0x38800000), value)));
-			const uint32x4_t inf = vdupq_n_u32(0x7F800000);
+			const uint32x4_t inf = vdupq_n_u32(0x7F800000), nan = vdupq_n_u32(0x7F802000);
 			value = veorq_u32(value, vandq_u32(veorq_u32(inf, value), vandq_u32(vcgtq_u32(inf, value), vcltq_u32(vdupq_n_u32(0x477FFFFF), value))));
-			const uint32x4_t nan = vdupq_n_u32(0x7F802000);
 			value = veorq_u32(value, vandq_u32(veorq_u32(nan, value), vandq_u32(vcgtq_u32(nan, value), vcltq_u32(inf, value))));
 			value = vshrq_n_u32(value, 13);
 			value = veorq_u32(value, vandq_u32(veorq_u32(vsubq_u32(value, vdupq_n_u32(0x0001C000)), value), vcltq_u32(vdupq_n_u32(0x00023BFF), value)));
@@ -1092,17 +1170,58 @@ namespace half_float
 		/// \return corresponding packed single-precision vector
 		inline float32x4_t vcvt_f32_f16(uint16x4_t values)
 		{
-			uint32x4_t value = vmovl_u16(values);
-			uint32x4_t sign = vandq_u32(vdupq_n_u32(0x8000), value);
+			uint32x4_t value = vmovl_u16(values), sign = vandq_u32(vdupq_n_u32(0x8000), value);
 			value = veorq_u32(value, sign);
 			value = veorq_u32(value, vandq_u32(veorq_s32(vaddq_u32(vdupq_n_u32(0x0001C000), value), value), vcltq_u32(vdupq_n_u32(0x000003FF), value)));
 			value = veorq_u32(value, vandq_u32(veorq_s32(vaddq_u32(vdupq_n_u32(0x0001C000), value), value), vcltq_u32(vdupq_n_u32(0x00023BFF), value)));
 			float32x4_t prod = vmulq_f32(vreinterpretq_f32_u32(vdupq_n_u32(0x33800000)), vcvtq_f32_u32(value));
 			uint32x4_t mask = vcgtq_u32(vdupq_n_u32(0x00000400), value);
 			value = vshlq_n_u32(value, 13);
-			value = vorrq_u32(veorq_u32(value, vandq_u32(veorq_u32(vreinterpretq_u32_f32(prod), value), mask)), vshlq_n_u32(sign, 16));
-			return vreinterpretq_f32_u32(value);
+			return vreinterpretq_f32_u32(vorrq_u32(veorq_u32(value, vandq_u32(veorq_u32(vreinterpretq_u32_f32(prod), value), mask)), vshlq_n_u32(sign, 16)));
 		}
+
+		inline uint16x4_t vceq_f16(uint16x4_t a, uint16x4_t b)
+		{
+			return vand_u16(vorr_u16(vceq_u16(a, b), vtst_u16(vdup_n_u16(0x7FFF), vorr_u16(a, b))), vcle_u16(vand_u16(vdup_n_u16(0x7FFF), a), vdup_n_u16(0x7C00)));
+		}
+
+		inline uint16x4_t vclt_f16(uint16x4_t a, uint16x4_t b)
+		{
+			return vand_u16(vclt_u16(vbsl_u16(vshr_n_u16(a, 15), vsub_u16(vdup_n_u16(0x8000), a), a), vbsl_u16(vshr_n_u16(b, 15), vsub_u16(vdup_n_u16(0x8000), b), b)), 
+							vand_u16(vcle_u16(vand_u16(vdup_n_u16(0x7FFF), a), vdup_n_u16(0x7C00)), vcle_u16(vand_u16(vdup_n_u16(0x7FFF), b), vdup_n_u16(0x7C00))));
+		}
+
+		inline uint16x4_t vcalt_f16(uint16x4_t a, uint16x4_t b)
+		{
+			uint16x4_t absa = vand_u16(vdup_n_u16(0x7FFF), a), absb = vand_u16(vdup_n_u16(0x7FFF), b);
+			return vand_u16(vclt_u16(absa, absb), vand_u16(vcle_u16(absa, vdup_n_u16(0x7C00)), vcle_u16(absb, vdup_n_u16(0x7C00))));
+		}
+
+		inline uint16x4_t vcale_f16(uint16x4_t a, uint16x4_t b)
+		{
+			uint16x4_t absa = vand_u16(vdup_n_u16(0x7FFF), a), absb = vand_u16(vdup_n_u16(0x7FFF), b);
+			return vand_u16(vcle_u16(absa, absb), vand_u16(vcle_u16(absa, vdup_n_u16(0x7C00)), vcle_u16(absb, vdup_n_u16(0x7C00))));
+		}
+
+		inline uint16x4_t vcagt_f16(uint16x4_t a, uint16x4_t b)
+		{
+			uint16x4_t absa = vand_u16(vdup_n_u16(0x7FFF), a), absb = vand_u16(vdup_n_u16(0x7FFF), b);
+			return vand_u16(vcgt_u16(absa, absb), vand_u16(vcle_u16(absa, vdup_n_u16(0x7C00)), vcle_u16(absb, vdup_n_u16(0x7C00))));
+		}
+
+		inline uint16x4_t vcage_f16(uint16x4_t a, uint16x4_t b)
+		{
+			uint16x4_t absa = vand_u16(vdup_n_u16(0x7FFF), a), absb = vand_u16(vdup_n_u16(0x7FFF), b);
+			return vand_u16(vcge_u16(absa, absb), vand_u16(vcle_u16(absa, vdup_n_u16(0x7C00)), vcle_u16(absb, vdup_n_u16(0x7C00))));
+		}
+
+		inline uint16x4_t vabs_f16(uint16x4_t values) { return vand_u16(vdup_n_u16(0x7FFF), values); }
+
+		inline uint16x8_t vabsq_f16(uint16x8_t values) { return vandq_u16(vdupq_n_u16(0x7FFF), values); }
+
+		inline uint16x4_t vneg_f16(uint16x4_t values) { return veor_u16(vdup_n_u16(0x8000), values); }
+
+		inline uint16x8_t vnegq_f16(uint16x8_t values) { return veorq_u16(vdupq_n_u16(0x8000), values); }
 #endif
 	}
 
@@ -2782,11 +2901,8 @@ namespace std
 #undef HALF_CONSTEXPR_CONST
 #undef HALF_NOEXCEPT
 #undef HALF_NOTHROW
-#ifdef HALF_ALTIVEC_INT_LITERAL
-	#undef HALF_ALTIVEC_INT_LITERAL
-#endif
-#ifdef HALF_ALTIVEC_FLOAT_LITERAL
-	#undef HALF_ALTIVEC_FLOAT_LITERAL
+#ifdef HALF_ALTIVEC_LITERAL
+	#undef HALF_ALTIVEC_LITERAL
 #endif
 
 #endif
