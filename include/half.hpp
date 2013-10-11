@@ -1268,25 +1268,25 @@ namespace half_float
 			return vand_u16(vcge_u16(absa, absb), vand_u16(vcle_u16(absa, vdup_n_u16(0x7C00)), vcle_u16(absb, vdup_n_u16(0x7C00))));
 		}
 
-		inline uint16x8_t vcalt_f16(uint16x8_t a, uint16x8_t b)
+		inline uint16x8_t vcaltq_f16(uint16x8_t a, uint16x8_t b)
 		{
 			uint16x8_t absa = vandq_u16(vdupq_n_u16(0x7FFF), a), absb = vandq_u16(vdupq_n_u16(0x7FFF), b);
 			return vandq_u16(vcltq_u16(absa, absb), vandq_u16(vcleq_u16(absa, vdupq_n_u16(0x7C00)), vcleq_u16(absb, vdupq_n_u16(0x7C00))));
 		}
 
-		inline uint16x8_t vcale_f16(uint16x8_t a, uint16x8_t b)
+		inline uint16x8_t vcaleq_f16(uint16x8_t a, uint16x8_t b)
 		{
 			uint16x8_t absa = vandq_u16(vdupq_n_u16(0x7FFF), a), absb = vandq_u16(vdupq_n_u16(0x7FFF), b);
 			return vandq_u16(vcleq_u16(absa, absb), vandq_u16(vcleq_u16(absa, vdupq_n_u16(0x7C00)), vcleq_u16(absb, vdupq_n_u16(0x7C00))));
 		}
 
-		inline uint16x8_t vcagt_f16(uint16x8_t a, uint16x8_t b)
+		inline uint16x8_t vcagtq_f16(uint16x8_t a, uint16x8_t b)
 		{
 			uint16x8_t absa = vandq_u16(vdupq_n_u16(0x7FFF), a), absb = vandq_u16(vdupq_n_u16(0x7FFF), b);
 			return vandq_u16(vcgtq_u16(absa, absb), vandq_u16(vcleq_u16(absa, vdupq_n_u16(0x7C00)), vcleq_u16(absb, vdupq_n_u16(0x7C00))));
 		}
 
-		inline uint16x8_t vcage_f16(uint16x8_t a, uint16x8_t b)
+		inline uint16x8_t vcageq_f16(uint16x8_t a, uint16x8_t b)
 		{
 			uint16x8_t absa = vandq_u16(vdupq_n_u16(0x7FFF), a), absb = vandq_u16(vdupq_n_u16(0x7FFF), b);
 			return vandq_u16(vcgeq_u16(absa, absb), vandq_u16(vcleq_u16(absa, vdupq_n_u16(0x7C00)), vcleq_u16(absb, vdupq_n_u16(0x7C00))));
