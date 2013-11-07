@@ -205,8 +205,6 @@
 /// This namespace contains all the functionality provided by the library.
 namespace half_float
 {
-	class half;
-
 	/// \internal
 	/// \brief Implementation details.
 	namespace detail
@@ -246,7 +244,8 @@ namespace half_float
 
 		/// Temporary half-precision expression.
 		/// This class represents a half-precision expression which just stores a single-precision value internally.
-		struct expr
+		/// \tparam R rounding mode of the corresponding half-precision type.
+		template<std::float_round_style R> struct expr
 		{
 			/// Conversion constructor.
 			/// \param f single-precision value to convert
@@ -261,33 +260,84 @@ namespace half_float
 			float value_;
 		};
 
+		template<std::float_round_style> class rounded_half;
+
 		/// SFINAE helper for generic half-precision functions.
 		/// This class template has to be specialized for each valid combination of argument types to provide a corresponding 
 		/// `type` member equivalent to \a T.
 		/// \tparam T type to return
 		template<typename T,typename,typename=void,typename=void> struct enable {};
-		template<typename T> struct enable<T,half,void,void> { typedef T type; };
-		template<typename T> struct enable<T,expr,void,void> { typedef T type; };
-		template<typename T> struct enable<T,half,half,void> { typedef T type; };
-		template<typename T> struct enable<T,half,expr,void> { typedef T type; };
-		template<typename T> struct enable<T,expr,half,void> { typedef T type; };
-		template<typename T> struct enable<T,expr,expr,void> { typedef T type; };
-		template<typename T> struct enable<T,half,half,half> { typedef T type; };
-		template<typename T> struct enable<T,half,half,expr> { typedef T type; };
-		template<typename T> struct enable<T,half,expr,half> { typedef T type; };
-		template<typename T> struct enable<T,half,expr,expr> { typedef T type; };
-		template<typename T> struct enable<T,expr,half,half> { typedef T type; };
-		template<typename T> struct enable<T,expr,half,expr> { typedef T type; };
-		template<typename T> struct enable<T,expr,expr,half> { typedef T type; };
-		template<typename T> struct enable<T,expr,expr,expr> { typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,rounded_half<R>,void,void>						{ typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,expr<R>,void,void>								{ typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,rounded_half<R>,rounded_half<R>,void>				{ typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,rounded_half<R>,expr<R>,void>						{ typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,expr<R>,rounded_half<R>,void>						{ typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,expr<R>,expr<R>,void>								{ typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,rounded_half<R>,rounded_half<R>,rounded_half<R>>	{ typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,rounded_half<R>,rounded_half<R>,expr<R>>			{ typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,rounded_half<R>,expr<R>,rounded_half<R>>			{ typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,rounded_half<R>,expr<R>,expr<R>>					{ typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,expr<R>,rounded_half<R>,rounded_half<R>>			{ typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,expr<R>,rounded_half<R>,expr<R>>					{ typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,expr<R>,expr<R>,rounded_half<R>>					{ typedef T type; };
+		template<typename T,std::float_round_style R> struct enable<T,expr<R>,expr<R>,expr<R>>							{ typedef T type; };
 
-		/// Return type for specialized generic 2-argument half-precision functions.
+		/// Return type for half-precision functions returning halfs.
 		/// This class template has to be specialized for each valid combination of argument types to provide a corresponding 
 		/// `type` member denoting the appropriate return type.
-		/// \tparam T first argument type
-		/// \tparam U first argument type
-		template<typename T,typename U> struct result : enable<expr,T,U> {};
-		template<> struct result<half,half> { typedef half type; };
+		template<typename,typename=void,typename=void> struct half_result {};
+		template<std::float_round_style R> struct half_result<rounded_half<R>,void,void>						{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct half_result<expr<R>,void,void>								{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct half_result<rounded_half<R>,rounded_half<R>,void>				{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct half_result<rounded_half<R>,expr<R>,void>						{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct half_result<expr<R>,rounded_half<R>,void>						{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct half_result<expr<R>,expr<R>,void>								{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct half_result<rounded_half<R>,rounded_half<R>,rounded_half<R>>	{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct half_result<rounded_half<R>,rounded_half<R>,expr<R>>			{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct half_result<rounded_half<R>,expr<R>,rounded_half<R>>			{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct half_result<rounded_half<R>,expr<R>,expr<R>>					{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct half_result<expr<R>,rounded_half<R>,rounded_half<R>>			{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct half_result<expr<R>,rounded_half<R>,expr<R>>					{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct half_result<expr<R>,expr<R>,rounded_half<R>>					{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct half_result<expr<R>,expr<R>,expr<R>>							{ typedef rounded_half<R> type; };
+
+		/// Return type for half-precision functions returning expressions.
+		/// This class template has to be specialized for each valid combination of argument types to provide a corresponding 
+		/// `type` member denoting the appropriate return type.
+		template<typename,typename=void,typename=void> struct expr_result {};
+		template<std::float_round_style R> struct expr_result<rounded_half<R>,void,void>						{ typedef expr<R> type; };
+		template<std::float_round_style R> struct expr_result<expr<R>,void,void>								{ typedef expr<R> type; };
+		template<std::float_round_style R> struct expr_result<rounded_half<R>,rounded_half<R>,void>				{ typedef expr<R> type; };
+		template<std::float_round_style R> struct expr_result<rounded_half<R>,expr<R>,void>						{ typedef expr<R> type; };
+		template<std::float_round_style R> struct expr_result<expr<R>,rounded_half<R>,void>						{ typedef expr<R> type; };
+		template<std::float_round_style R> struct expr_result<expr<R>,expr<R>,void>								{ typedef expr<R> type; };
+		template<std::float_round_style R> struct expr_result<rounded_half<R>,rounded_half<R>,rounded_half<R>>	{ typedef expr<R> type; };
+		template<std::float_round_style R> struct expr_result<rounded_half<R>,rounded_half<R>,expr<R>>			{ typedef expr<R> type; };
+		template<std::float_round_style R> struct expr_result<rounded_half<R>,expr<R>,rounded_half<R>>			{ typedef expr<R> type; };
+		template<std::float_round_style R> struct expr_result<rounded_half<R>,expr<R>,expr<R>>					{ typedef expr<R> type; };
+		template<std::float_round_style R> struct expr_result<expr<R>,rounded_half<R>,rounded_half<R>>			{ typedef expr<R> type; };
+		template<std::float_round_style R> struct expr_result<expr<R>,rounded_half<R>,expr<R>>					{ typedef expr<R> type; };
+		template<std::float_round_style R> struct expr_result<expr<R>,expr<R>,rounded_half<R>>					{ typedef expr<R> type; };
+		template<std::float_round_style R> struct expr_result<expr<R>,expr<R>,expr<R>>							{ typedef expr<R> type; };
+
+		/// Return type for specialized generic half-precision functions.
+		/// This class template has to be specialized for each valid combination of argument types to provide a corresponding 
+		/// `type` member denoting the appropriate return type.
+		template<typename,typename=void,typename=void> struct generic_result {};
+		template<std::float_round_style R> struct generic_result<rounded_half<R>,void,void>							{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct generic_result<expr<R>,void,void>									{ typedef expr<R> type; };
+		template<std::float_round_style R> struct generic_result<rounded_half<R>,rounded_half<R>,void>				{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct generic_result<rounded_half<R>,expr<R>,void>						{ typedef expr<R> type; };
+		template<std::float_round_style R> struct generic_result<expr<R>,rounded_half<R>,void>						{ typedef expr<R> type; };
+		template<std::float_round_style R> struct generic_result<expr<R>,expr<R>,void>								{ typedef expr<R> type; };
+		template<std::float_round_style R> struct generic_result<rounded_half<R>,rounded_half<R>,rounded_half<R>>	{ typedef rounded_half<R> type; };
+		template<std::float_round_style R> struct generic_result<rounded_half<R>,rounded_half<R>,expr<R>>			{ typedef expr<R> type; };
+		template<std::float_round_style R> struct generic_result<rounded_half<R>,expr<R>,rounded_half<R>>			{ typedef expr<R> type; };
+		template<std::float_round_style R> struct generic_result<rounded_half<R>,expr<R>,expr<R>>					{ typedef expr<R> type; };
+		template<std::float_round_style R> struct generic_result<expr<R>,rounded_half<R>,rounded_half<R>>			{ typedef expr<R> type; };
+		template<std::float_round_style R> struct generic_result<expr<R>,rounded_half<R>,expr<R>>					{ typedef expr<R> type; };
+		template<std::float_round_style R> struct generic_result<expr<R>,expr<R>,rounded_half<R>>					{ typedef expr<R> type; };
+		template<std::float_round_style R> struct generic_result<expr<R>,expr<R>,expr<R>>							{ typedef expr<R> type; };
 
 		/// \name Classification helpers
 		/// \{
@@ -779,144 +829,145 @@ namespace half_float
 		}
 		/// \}
 
-		struct functions;
+		template<std::float_round_style> struct functions;
 		template<typename> struct unary_specialized;
 		template<typename,typename> struct binary_specialized;
 		template<typename,typename,std::float_round_style> struct half_caster;
+
+		/// Half-precision floating point type.
+		/// This class implements an IEEE-conformant half-precision floating point type with the usual arithmetic operators and 
+		/// conversions. It is implicitly convertible to single-precision floating point, which makes artihmetic expressions and 
+		/// functions with mixed-type operands to be of the most precise operand type. Additionally all arithmetic operations 
+		/// (and many mathematical functions) are carried out in single-precision internally. All conversions from single- to 
+		/// half-precision are done using the specified rounding mode, but temporary results inside chained arithmetic 
+		/// expressions are kept in single-precision as long as possible (while of course still maintaining a strong half-precision type).
+		///
+		/// According to the C++98/03 definition, the half type is not a POD type. But according to C++11's less strict and 
+		/// extended definitions it is both a standard layout type and a trivially copyable type (even if not a POD type), which 
+		/// means it can be standard-conformantly copied using raw binary copies. But in this context some more words about the 
+		/// actual size of the type. Although the half is representing an IEEE 16-bit type, it does not neccessarily have to be of 
+		/// exactly 16-bits size. But on any reasonable implementation the actual binary representation of this type will most 
+		/// probably not ivolve any additional "magic" or padding beyond the simple binary representation of the underlying 16-bit 
+		/// IEEE number, even if not strictly guaranteed by the standard. But even then it only has an actual size of 16 bits if 
+		/// your C++ implementation supports an unsigned integer type of exactly 16 bits width. But this should be the case on 
+		/// nearly any reasonable platform.
+		///
+		/// So if your C++ implementation is not totally exotic or imposes special alignment requirements, it is a reasonable 
+		/// assumption that the data of a half is just comprised of the 2 bytes of the underlying IEEE representation.
+		/// \tparam R rounding mode to use, `std::round_indeterminate` for fastest rounding
+		template<std::float_round_style R=std::round_indeterminate> class rounded_half
+		{
+			friend struct detail::functions;
+			friend struct detail::unary_specialized<rounded_half<R>>;
+			friend struct detail::binary_specialized<rounded_half<R>,rounded_half<R>>;
+			template<typename,typename,std::float_round_style> friend struct detail::half_caster;
+			friend class std::numeric_limits<rounded_half<R>>;
+		#if HALF_ENABLE_CPP11_HASH
+			friend struct std::hash<rounded_half<R>>;
+		#endif
+
+		public:
+			/// Default constructor.
+			/// This initializes the half to 0. Although this does not match the builtin types' default-initialization semantics 
+			/// and may be less efficient than no initialization, it is needed to provide proper value-initialization semantics.
+			HALF_CONSTEXPR rounded_half() : data_() {}
+
+			/// Copy constructor.
+			/// \tparam T type of concrete half expression
+			/// \param rhs half expression to copy from
+			rounded_half(detail::expr rhs) : data_(detail::float2half<round_style>(rhs)) {}
+
+			/// Conversion constructor.
+			/// \param rhs float to convert
+			explicit rounded_half(float rhs) : data_(detail::float2half<round_style>(rhs)) {}
+	
+			/// Conversion to single-precision.
+			/// \return single precision value representing expression value
+			operator float() const { return detail::half2float(data_); }
+
+			/// Assignment operator.
+			/// \tparam T type of concrete half expression
+			/// \param rhs half expression to copy from
+			/// \return reference to this half
+			rounded_half& operator=(detail::expr<R> rhs) { return *this = static_cast<float>(rhs); }
+
+			/// Arithmetic assignment.
+			/// \tparam T type of concrete half expression
+			/// \param rhs half expression to add
+			/// \return reference to this half
+			template<typename T> typename detail::enable<rounded_half&,T>::type operator+=(T rhs) { return *this += static_cast<float>(rhs); }
+
+			/// Arithmetic assignment.
+			/// \tparam T type of concrete half expression
+			/// \param rhs half expression to subtract
+			/// \return reference to this half
+			template<typename T> typename detail::enable<rounded_half&,T>::type operator-=(T rhs) { return *this -= static_cast<float>(rhs); }
+
+			/// Arithmetic assignment.
+			/// \tparam T type of concrete half expression
+			/// \param rhs half expression to multiply with
+			/// \return reference to this half
+			template<typename T> typename detail::enable<rounded_half&,T>::type operator*=(T rhs) { return *this *= static_cast<float>(rhs); }
+
+			/// Arithmetic assignment.
+			/// \tparam T type of concrete half expression
+			/// \param rhs half expression to divide by
+			/// \return reference to this half
+			template<typename T> typename detail::enable<rounded_half&,T>::type operator/=(T rhs) { return *this /= static_cast<float>(rhs); }
+
+			/// Assignment operator.
+			/// \param rhs single-precision value to copy from
+			/// \return reference to this half
+			rounded_half& operator=(float rhs) { data_ = detail::float2half<round_style>(rhs); return *this; }
+
+			/// Arithmetic assignment.
+			/// \param rhs single-precision value to add
+			/// \return reference to this half
+			rounded_half& operator+=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float(data_)+rhs); return *this; }
+
+			/// Arithmetic assignment.
+			/// \param rhs single-precision value to subtract
+			/// \return reference to this half
+			rounded_half& operator-=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float(data_)-rhs); return *this; }
+
+			/// Arithmetic assignment.
+			/// \param rhs single-precision value to multiply with
+			/// \return reference to this half
+			rounded_half& operator*=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float(data_)*rhs); return *this; }
+
+			/// Arithmetic assignment.
+			/// \param rhs single-precision value to divide by
+			/// \return reference to this half
+			rounded_half& operator/=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float(data_)/rhs); return *this; }
+
+			/// Prefix increment.
+			/// \return incremented half value
+			rounded_half& operator++() { return *this += 1.0f; }
+
+			/// Prefix decrement.
+			/// \return decremented half value
+			rounded_half& operator--() { return *this -= 1.0f; }
+
+			/// Postfix increment.
+			/// \return non-incremented half value
+			rounded_half operator++(int) { rounded_half out(*this); ++*this; return out; }
+
+			/// Postfix decrement.
+			/// \return non-decremented half value
+			rounded_half operator--(int) { rounded_half out(*this); --*this; return out; }
+	
+		private:
+			/// Rounding mode to use (always `std::round_indeterminate`)
+			static const std::float_round_style round_style = R;
+
+			/// Constructor.
+			/// \param bits binary representation to set half to
+			HALF_CONSTEXPR rounded_half(detail::binary_t, detail::uint16 bits) : data_(bits) {}
+
+			/// Internal binary representation
+			detail::uint16 data_;
+		};
 	}
-
-	/// Half-precision floating point type.
-	/// This class implements an IEEE-conformant half-precision floating point type with the usual arithmetic operators and 
-	/// conversions. It is implicitly convertible to single-precision floating point, which makes artihmetic expressions and 
-	/// functions with mixed-type operands to be of the most precise operand type. Additionally all arithmetic operations 
-	/// (and many mathematical functions) are carried out in single-precision internally. All conversions from single- to 
-	/// half-precision are done using truncation (round towards zero), but temporary results inside chained arithmetic 
-	/// expressions are kept in single-precision as long as possible (while of course still maintaining a strong half-precision type).
-	///
-	/// According to the C++98/03 definition, the half type is not a POD type. But according to C++11's less strict and 
-	/// extended definitions it is both a standard layout type and a trivially copyable type (even if not a POD type), which 
-	/// means it can be standard-conformantly copied using raw binary copies. But in this context some more words about the 
-	/// actual size of the type. Although the half is representing an IEEE 16-bit type, it does not neccessarily have to be of 
-	/// exactly 16-bits size. But on any reasonable implementation the actual binary representation of this type will most 
-	/// probably not ivolve any additional "magic" or padding beyond the simple binary representation of the underlying 16-bit 
-	/// IEEE number, even if not strictly guaranteed by the standard. But even then it only has an actual size of 16 bits if 
-	/// your C++ implementation supports an unsigned integer type of exactly 16 bits width. But this should be the case on 
-	/// nearly any reasonable platform.
-	///
-	/// So if your C++ implementation is not totally exotic or imposes special alignment requirements, it is a reasonable 
-	/// assumption that the data of a half is just comprised of the 2 bytes of the underlying IEEE representation.
-	class half
-	{
-		friend struct detail::functions;
-		friend struct detail::unary_specialized<half>;
-		friend struct detail::binary_specialized<half,half>;
-		template<typename,typename,std::float_round_style> friend struct detail::half_caster;
-		friend class std::numeric_limits<half>;
-	#if HALF_ENABLE_CPP11_HASH
-		friend struct std::hash<half>;
-	#endif
-
-	public:
-		/// Default constructor.
-		/// This initializes the half to 0. Although this does not match the builtin types' default-initialization semantics 
-		/// and may be less efficient than no initialization, it is needed to provide proper value-initialization semantics.
-		HALF_CONSTEXPR half() : data_() {}
-
-		/// Copy constructor.
-		/// \tparam T type of concrete half expression
-		/// \param rhs half expression to copy from
-		half(detail::expr rhs) : data_(detail::float2half<round_style>(rhs)) {}
-
-		/// Conversion constructor.
-		/// \param rhs float to convert
-		explicit half(float rhs) : data_(detail::float2half<round_style>(rhs)) {}
-	
-		/// Conversion to single-precision.
-		/// \return single precision value representing expression value
-		operator float() const { return detail::half2float(data_); }
-
-		/// Assignment operator.
-		/// \tparam T type of concrete half expression
-		/// \param rhs half expression to copy from
-		/// \return reference to this half
-		half& operator=(detail::expr rhs) { return *this = static_cast<float>(rhs); }
-
-		/// Arithmetic assignment.
-		/// \tparam T type of concrete half expression
-		/// \param rhs half expression to add
-		/// \return reference to this half
-		template<typename T> typename detail::enable<half&,T>::type operator+=(T rhs) { return *this += static_cast<float>(rhs); }
-
-		/// Arithmetic assignment.
-		/// \tparam T type of concrete half expression
-		/// \param rhs half expression to subtract
-		/// \return reference to this half
-		template<typename T> typename detail::enable<half&,T>::type operator-=(T rhs) { return *this -= static_cast<float>(rhs); }
-
-		/// Arithmetic assignment.
-		/// \tparam T type of concrete half expression
-		/// \param rhs half expression to multiply with
-		/// \return reference to this half
-		template<typename T> typename detail::enable<half&,T>::type operator*=(T rhs) { return *this *= static_cast<float>(rhs); }
-
-		/// Arithmetic assignment.
-		/// \tparam T type of concrete half expression
-		/// \param rhs half expression to divide by
-		/// \return reference to this half
-		template<typename T> typename detail::enable<half&,T>::type operator/=(T rhs) { return *this /= static_cast<float>(rhs); }
-
-		/// Assignment operator.
-		/// \param rhs single-precision value to copy from
-		/// \return reference to this half
-		half& operator=(float rhs) { data_ = detail::float2half<round_style>(rhs); return *this; }
-
-		/// Arithmetic assignment.
-		/// \param rhs single-precision value to add
-		/// \return reference to this half
-		half& operator+=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float(data_)+rhs); return *this; }
-
-		/// Arithmetic assignment.
-		/// \param rhs single-precision value to subtract
-		/// \return reference to this half
-		half& operator-=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float(data_)-rhs); return *this; }
-
-		/// Arithmetic assignment.
-		/// \param rhs single-precision value to multiply with
-		/// \return reference to this half
-		half& operator*=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float(data_)*rhs); return *this; }
-
-		/// Arithmetic assignment.
-		/// \param rhs single-precision value to divide by
-		/// \return reference to this half
-		half& operator/=(float rhs) { data_ = detail::float2half<round_style>(detail::half2float(data_)/rhs); return *this; }
-
-		/// Prefix increment.
-		/// \return incremented half value
-		half& operator++() { return *this += 1.0f; }
-
-		/// Prefix decrement.
-		/// \return decremented half value
-		half& operator--() { return *this -= 1.0f; }
-
-		/// Postfix increment.
-		/// \return non-incremented half value
-		half operator++(int) { half out(*this); ++*this; return out; }
-
-		/// Postfix decrement.
-		/// \return non-decremented half value
-		half operator--(int) { half out(*this); --*this; return out; }
-	
-	private:
-		/// Rounding mode to use (always `std::round_indeterminate`)
-		static const std::float_round_style round_style = std::round_indeterminate;
-
-		/// Constructor.
-		/// \param bits binary representation to set half to
-		HALF_CONSTEXPR half(detail::binary_t, detail::uint16 bits) : data_(bits) {}
-
-		/// Internal binary representation
-		detail::uint16 data_;
-	};
 
 #if HALF_ENABLE_CPP11_USER_LITERALS
 	/// Library-defined half-precision literals.
@@ -939,8 +990,12 @@ namespace half_float
 	namespace detail
 	{
 		/// Wrapper implementing unspecialized half-precision functions.
-		struct functions
+		/// \tparam R rounding mode of the corresponding half-precision type.
+		template<std::float_round_style R> struct functions
 		{
+			typedef rounded_half<R> half;
+			typedef expr<R> expr;
+
 			/// Addition implementation.
 			/// \param x first operand
 			/// \param y second operand
@@ -2540,7 +2595,8 @@ namespace std
 	/// Numeric limits for half-precision floats.
 	/// Because of the underlying single-precision implementation of many operations, it inherits some properties from 
 	/// `std::numeric_limits<float>`.
-	template<> class numeric_limits<half_float::half> : public numeric_limits<float>
+	/// \tparam R rounding mode of the half-precision type.
+	template<> class numeric_limits<half_float::detail::rounded_half<R>> : public numeric_limits<float>
 	{
 	public:
 		/// Supports signed values.
@@ -2569,7 +2625,7 @@ namespace std
 		/// single-precision implementation) with explicit truncation of the single-to-half conversions, the actual rounding 
 		/// mode is indeterminate.
 		static HALF_CONSTEXPR_CONST float_round_style round_style = (std::numeric_limits<float>::round_style==
-			half_float::half::round_style) ? half_float::half::round_style : round_indeterminate;
+			half_float::detail::rounded_half<R>::round_style) ? half_float::detail::rounded_half<R>::round_style : round_indeterminate;
 
 		/// Significant digits.
 		static HALF_CONSTEXPR_CONST int digits = 11;
@@ -2596,40 +2652,50 @@ namespace std
 		static HALF_CONSTEXPR_CONST int max_exponent10 = 4;
 
 		/// Smallest positive normal value.
-		static HALF_CONSTEXPR half_float::half min() HALF_NOTHROW { return half_float::half(half_float::detail::binary, 0x0400); }
+		static HALF_CONSTEXPR half_float::detail::rounded_half<R> min() HALF_NOTHROW
+			{ return half_float::detail::rounded_half<R>(half_float::detail::binary, 0x0400); }
 
 		/// Smallest finite value.
-		static HALF_CONSTEXPR half_float::half lowest() HALF_NOTHROW { return half_float::half(half_float::detail::binary, 0xFBFF); }
+		static HALF_CONSTEXPR half_float::detail::rounded_half<R> lowest() HALF_NOTHROW
+			{ return half_float::detail::rounded_half<R>(half_float::detail::binary, 0xFBFF); }
 
 		/// Largest finite value.
-		static HALF_CONSTEXPR half_float::half max() HALF_NOTHROW { return half_float::half(half_float::detail::binary, 0x7BFF); }
+		static HALF_CONSTEXPR half_float::detail::rounded_half<R> max() HALF_NOTHROW
+			{ return half_float::detail::rounded_half<R>(half_float::detail::binary, 0x7BFF); }
 
 		/// Difference between one and next representable value.
-		static HALF_CONSTEXPR half_float::half epsilon() HALF_NOTHROW { return half_float::half(half_float::detail::binary, 0x1400); }
+		static HALF_CONSTEXPR half_float::detail::rounded_half<R> epsilon() HALF_NOTHROW
+			{ return half_float::detail::rounded_half<R>(half_float::detail::binary, 0x1400); }
 
 		/// Maximum rounding error.
-		static HALF_CONSTEXPR half_float::half round_error() HALF_NOTHROW { return half_float::half(half_float::detail::binary, 0x3C00); }
+		static HALF_CONSTEXPR half_float::detail::rounded_half<R> round_error() HALF_NOTHROW
+			{ return half_float::detail::rounded_half<R>(half_float::detail::binary, 0x3C00); }
 
 		/// Positive infinity.
-		static HALF_CONSTEXPR half_float::half infinity() HALF_NOTHROW { return half_float::half(half_float::detail::binary, 0x7C00); }
+		static HALF_CONSTEXPR half_float::detail::rounded_half<R> infinity() HALF_NOTHROW
+			{ return half_float::detail::rounded_half<R>(half_float::detail::binary, 0x7C00); }
 
 		/// Quiet NaN.
-		static HALF_CONSTEXPR half_float::half quiet_NaN() HALF_NOTHROW { return half_float::half(half_float::detail::binary, 0x7FFF); }
+		static HALF_CONSTEXPR half_float::detail::rounded_half<R> quiet_NaN() HALF_NOTHROW
+			{ return half_float::detail::rounded_half<R>(half_float::detail::binary, 0x7FFF); }
 
 		/// Signalling NaN.
-		static HALF_CONSTEXPR half_float::half signaling_NaN() HALF_NOTHROW { return half_float::half(half_float::detail::binary, 0x7DFF); }
+		static HALF_CONSTEXPR half_float::detail::rounded_half<R> signaling_NaN() HALF_NOTHROW
+			{ return half_float::detail::rounded_half<R>(half_float::detail::binary, 0x7DFF); }
 
 		/// Smallest positive subnormal value.
-		static HALF_CONSTEXPR half_float::half denorm_min() HALF_NOTHROW { return half_float::half(half_float::detail::binary, 0x0001); }
+		static HALF_CONSTEXPR half_float::detail::rounded_half<R> denorm_min() HALF_NOTHROW
+			{ return half_float::detail::rounded_half<R>(half_float::detail::binary, 0x0001); }
 	};
 
 #if HALF_ENABLE_CPP11_HASH
 	/// Hash function for half-precision floats.
 	/// This is only defined if C++11 `std::hash` is supported and enabled.
-	template<> struct hash<half_float::half> //: unary_function<half_float::half,size_t>
+	/// \tparam R rounding mode of the half-precision type.
+	template<> struct hash<half_float::detail::rounded_half<R>> //: unary_function<half_float::half,size_t>
 	{
 		/// Type of function argument.
-		typedef half_float::half argument_type;
+		typedef half_float::detail::rounded_half<R> argument_type;
 
 		/// Function return type.
 		typedef size_t result_type;
