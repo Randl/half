@@ -1034,38 +1034,34 @@ namespace half_float
 
 		inline __m128i mm_cmplt_ph(__m128i a, __m128i b)
 		{
+			__m128i absa = _mm_and_si128(_mm_set1_epi16(0x7FFF), a), absb = _mm_and_si128(_mm_set1_epi16(0x7FFF), b);
 			__m128i signa = _mm_srai_epi16(a, 15), signb = _mm_srai_epi16(b, 15);
-			return _mm_and_si128(_mm_cmplt_epi16(_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), a), signa), _mm_andnot_si128(signa, a)), 
-												 _mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), b), signb), _mm_andnot_si128(signb, b))), 
-								 _mm_and_si128(_mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), a), _mm_set1_epi16(0x7C01)), 
-											   _mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), b), _mm_set1_epi16(0x7C01))));
+			return _mm_and_si128(_mm_cmplt_epi16(_mm_sub_epi16(_mm_xor_si128(absa, signa), signa), _mm_sub_epi16(_mm_xor_si128(absb, signb), signb)), 
+								 _mm_and_si128(_mm_cmplt_epi16(absa, _mm_set1_epi16(0x7C01)), _mm_cmplt_epi16(absb, _mm_set1_epi16(0x7C01))));
 		}
 
 		inline __m128i mm_cmple_ph(__m128i a, __m128i b)
 		{
+			__m128i absa = _mm_and_si128(_mm_set1_epi16(0x7FFF), a), absb = _mm_and_si128(_mm_set1_epi16(0x7FFF), b);
 			__m128i signa = _mm_srai_epi16(a, 15), signb = _mm_srai_epi16(b, 15);
-			return _mm_andnot_si128(_mm_cmpgt_epi16(_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), a), signa), _mm_andnot_si128(signa, a)), 
-													_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), b), signb), _mm_andnot_si128(signb, b))), 
-									_mm_and_si128(_mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), a), _mm_set1_epi16(0x7C01)), 
-												  _mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), b), _mm_set1_epi16(0x7C01))));
+			return _mm_andnot_si128(_mm_cmpgt_epi16(_mm_sub_epi16(_mm_xor_si128(absa, signa), signa), _mm_sub_epi16(_mm_xor_si128(absb, signb), signb)), 
+									_mm_and_si128(_mm_cmplt_epi16(absa, _mm_set1_epi16(0x7C01)), _mm_cmplt_epi16(absb, _mm_set1_epi16(0x7C01))));
 		}
 
 		inline __m128i mm_cmpgt_ph(__m128i a, __m128i b)
 		{
+			__m128i absa = _mm_and_si128(_mm_set1_epi16(0x7FFF), a), absb = _mm_and_si128(_mm_set1_epi16(0x7FFF), b);
 			__m128i signa = _mm_srai_epi16(a, 15), signb = _mm_srai_epi16(b, 15);
-			return _mm_and_si128(_mm_cmpgt_epi16(_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), a), signa), _mm_andnot_si128(signa, a)), 
-												 _mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), b), signb), _mm_andnot_si128(signb, b))), 
-								 _mm_and_si128(_mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), a), _mm_set1_epi16(0x7C01)), 
-											   _mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), b), _mm_set1_epi16(0x7C01))));
+			return _mm_and_si128(_mm_cmpgt_epi16(_mm_sub_epi16(_mm_xor_si128(absa, signa), signa), _mm_sub_epi16(_mm_xor_si128(absb, signb), signb)), 
+								 _mm_and_si128(_mm_cmplt_epi16(absa, _mm_set1_epi16(0x7C01)), _mm_cmplt_epi16(absb, _mm_set1_epi16(0x7C01))));
 		}
 
 		inline __m128i mm_cmpge_ph(__m128i a, __m128i b)
 		{
+			__m128i absa = _mm_and_si128(_mm_set1_epi16(0x7FFF), a), absb = _mm_and_si128(_mm_set1_epi16(0x7FFF), b);
 			__m128i signa = _mm_srai_epi16(a, 15), signb = _mm_srai_epi16(b, 15);
-			return _mm_andnot_si128(_mm_cmplt_epi16(_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), a), signa), _mm_andnot_si128(signa, a)), 
-													_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), b), signb), _mm_andnot_si128(signb, b))), 
-									_mm_and_si128(_mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), a), _mm_set1_epi16(0x7C01)), 
-												  _mm_cmplt_epi16(_mm_and_si128(_mm_set1_epi16(0x7FFF), b), _mm_set1_epi16(0x7C01))));
+			return _mm_andnot_si128(_mm_cmplt_epi16(_mm_sub_epi16(_mm_xor_si128(absa, signa), signa), _mm_sub_epi16(_mm_xor_si128(absb, signb), signb)), 
+									_mm_and_si128(_mm_cmplt_epi16(absa, _mm_set1_epi16(0x7C01)), _mm_cmplt_epi16(absb, _mm_set1_epi16(0x7C01))));
 		}
 
 		inline __m128i mm_cmpneq_ph(__m128i a, __m128i b)
@@ -1078,22 +1074,20 @@ namespace half_float
 
 		inline __m128i mm_cmpnle_ph(__m128i a, __m128i b)
 		{
+			__m128i absa = _mm_and_si128(_mm_set1_epi16(0x7FFF), a), absb = _mm_and_si128(_mm_set1_epi16(0x7FFF), b);
 			__m128i signa = _mm_srai_epi16(a, 15), signb = _mm_srai_epi16(b, 15);
-			return _mm_or_si128(_mm_cmpgt_epi16(_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), a), signa), _mm_andnot_si128(signa, a)), 
-												_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), b), signb), _mm_andnot_si128(signb, b))), 
-								_mm_or_si128(_mm_cmplt_epi16(_mm_set1_epi16(0x7C00), _mm_and_si128(_mm_set1_epi16(0x7FFF), a)), 
-											 _mm_cmplt_epi16(_mm_set1_epi16(0x7C00), _mm_and_si128(_mm_set1_epi16(0x7FFF), b))));
+			return _mm_or_si128(_mm_cmpgt_epi16(_mm_sub_epi16(_mm_xor_si128(absa, signa), signa), _mm_sub_epi16(_mm_xor_si128(absb, signb), signb)), 
+								_mm_or_si128(_mm_cmplt_epi16(_mm_set1_epi16(0x7C00), absa), _mm_cmplt_epi16(_mm_set1_epi16(0x7C00), absb)));
 		}
 
 		inline __m128i mm_cmpngt_ph(__m128i a, __m128i b) { return _mm_xor_si128(_mm_set1_epi32(0xFFFFFFFF), mm_cmpgt_ph(a, b)); }
 
 		inline __m128i mm_cmpnge_ph(__m128i a, __m128i b)
 		{
+			__m128i absa = _mm_and_si128(_mm_set1_epi16(0x7FFF), a), absb = _mm_and_si128(_mm_set1_epi16(0x7FFF), b);
 			__m128i signa = _mm_srai_epi16(a, 15), signb = _mm_srai_epi16(b, 15);
-			return _mm_or_si128(_mm_cmplt_epi16(_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), a), signa), _mm_andnot_si128(signa, a)), 
-												_mm_or_si128(_mm_and_si128(_mm_sub_epi16(_mm_set1_epi16(0x8000), b), signb), _mm_andnot_si128(signb, b))), 
-								_mm_or_si128(_mm_cmplt_epi16(_mm_set1_epi16(0x7C00), _mm_and_si128(_mm_set1_epi16(0x7FFF), a)), 
-											 _mm_cmplt_epi16(_mm_set1_epi16(0x7C00), _mm_and_si128(_mm_set1_epi16(0x7FFF), b))));
+			return _mm_or_si128(_mm_cmplt_epi16(_mm_sub_epi16(_mm_xor_si128(absa, signa), signa), _mm_sub_epi16(_mm_xor_si128(absb, signb), signb)), 
+								_mm_or_si128(_mm_cmplt_epi16(_mm_set1_epi16(0x7C00), absa), _mm_cmplt_epi16(_mm_set1_epi16(0x7C00), absb)));
 		}
 
 		inline __m128i mm_cmpord_ph(__m128i a, __m128i b)
