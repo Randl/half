@@ -1,6 +1,24 @@
 News														{#news}
 ====
 
+November 16, 2013 - Release 1.11.0
+---------------------------------
+
+[Version 1.11.0](http://sourceforge.net/projects/half/files/half/1.11.0) of the library has been released. It further increases the flexibility of the rounding, by allowing the round to nearest behaviour to be configured more precisely. By default half-way cases during round to nearest are rounded away from zero (and thus analogous to the round() function), but by redefining [HALF_ROUND_TIES_TO_EVEN](\ref HALF_ROUND_TIES_TO_EVEN) to `1` this can be changed to the slower but less biased round to even. In addition to that the support for C++11 mathematical functions in light of unsupported single-precision versions has been completed by providing erf(), erfc(), lgamma() and tgamma() even if their `<cmath>` counterparts are unavailable. Furthermore, it fixes a bug that made it impossible to disable support for C++11 mathematical functions in *VC++ 2013*.
+
+---------------------------------
+November 9, 2013 - Release 1.10.0
+---------------------------------
+
+[Version 1.10.0](http://sourceforge.net/projects/half/files/half/1.10.0) of the library has been released. It adds the possibility of changing the default rounding mode for halfs (used for any float-to-half conversion) at compile-time by redefining the [HALF_ROUND_STYLE](\ref HALF_ROUND_STYLE) preprocessor symbol. In addition to that the behaviour of the half_cast() function was adjusted to respect the specified rounding mode for conversions to/from integer types, without a roundtrip over an additional conversion to/from `float`. The half_cast() now only supports built-in arithmetic types (apart from [half](\ref half_float::half)s, of course) and any further conversions from them to custom types have to be done explicitly. The usage and checks of C++11 features has been extended by support for type traits and TMP facilities from `<type_traits>`, controllable with the `HALF_ENABLE_CPP11_TYPE_TRAITS` symbol. Last but not least, the library now supports non-IEEE single-precision implementations, which are pretty unlikely nowadays, though.
+
+--------------------------------
+November 1, 2013 - Release 1.9.2
+--------------------------------
+
+[Version 1.9.2](http://sourceforge.net/projects/half/files/half/1.9.2) of the library has been released. It was tested and fixed for *MS Visual C++ 2013* and *gcc 4.8*. In addition to that it removes some warnings on *MSVC* compilers in general.
+
+------------------------------
 August 8, 2013 - Release 1.9.1
 ------------------------------
 

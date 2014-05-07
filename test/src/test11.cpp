@@ -1,6 +1,6 @@
 // test - Test application for half-precision floating point functionality.
 //
-// Copyright (c) 2012-2013 Christian Rau <rauy@users.sourceforge.net>
+// Copyright (c) 2012-2014 Christian Rau <rauy@users.sourceforge.net>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation 
 // files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, 
@@ -14,6 +14,8 @@
 // COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
 // ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#define HALF_ROUND_STYLE -1
+#define HALF_ROUND_TIES_TO_EVEN 0
 #include <half.hpp>
 
 #include <utility>
@@ -37,6 +39,23 @@
 #if HALF_ENABLE_CPP11_HASH
 	#include <unordered_map>
 #endif
+
+
+#define UNARY_MATH_TEST(func) { \
+	double err = 0.0, rel = 0.0; \
+	bool success = unary_test(#func, [&](half arg) -> bool { \
+		half a = func(arg), b(std::func(static_cast<float>(arg))); bool equal = comp(a, b); \
+		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
+		err = std::max(err, error); rel = std::max(rel, error/std::abs(static_cast<double>(arg))); } return equal; }); \
+	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << '\n'; }
+
+#define BINARY_MATH_TEST(func) { \
+	double err = 0.0, rel = 0.0; \
+	bool success = binary_test(#func, [&](half x, half y) -> bool { \
+		half a = func(x, y), b(std::func(static_cast<float>(x), static_cast<float>(y))); bool equal = comp(a, b); \
+		if(!equal) { double error = std::abs(static_cast<double>(a)-static_cast<double>(b)); \
+		err = std::max(err, error); rel = std::max(rel, error/std::min(std::abs(static_cast<double>(x)), std::abs(static_cast<double>(y)))); } return equal; }); \
+	if(err != 0.0 || rel != 0.0) std::cout << #func << " max error: " << err << " - max relative error: " << rel << '\n'; }
 
 
 using half_float::half;
@@ -116,15 +135,6 @@ public:
 		classes_["negative inft"] = FP_INFINITE;
 		classes_["negative sNaN"] = FP_NAN;
 		classes_["negative qNaN"] = FP_NAN;
-
-		//write halfs
-		std::ofstream out("halfs.log");
-		for(auto iterB=halfs_.begin(); iterB!=halfs_.end(); ++iterB)
-		{
-			out << iterB->first << ":\n";
-			for(auto iterH=iterB->second.begin(); iterH!=iterB->second.end(); ++iterH)
-				out << '\t' << *iterH << '\n';
-		}
 	}
 
 	unsigned int test()
@@ -166,53 +176,50 @@ public:
 		binary_test("greater equal", [](half a, half b) { return (a>=b) == (static_cast<float>(a)>=static_cast<float>(b)); });
 
 		//test basic functions
-		unary_test("abs", [](half arg) { return comp(abs(arg), static_cast<half>(std::abs(static_cast<float>(arg)))); });
-		unary_test("fabs", [](half arg) { return comp(abs(arg), static_cast<half>(std::fabs(static_cast<float>(arg)))); });
-		binary_test("fmod", [](half a, half b) { return comp(fmod(a, b), 
-			static_cast<half>(std::fmod(static_cast<float>(a), static_cast<float>(b)))); });
+		UNARY_MATH_TEST(abs);
+		UNARY_MATH_TEST(fabs);
+		BINARY_MATH_TEST(fmod);
 		binary_test("fdim", [](half a, half b) -> bool { half c = fdim(a, b); return isnan(a) || isnan(b) || 
 			(isinf(a) && isinf(b) && signbit(a)==signbit(b)) || ((a>b) && comp(c, a-b)) || ((a<=b) && comp(c, static_cast<half>(0.0f))); });
 
 		//test exponential functions
-		unary_test("exp", [](half arg) { return comp(exp(arg), static_cast<half>(std::exp(static_cast<float>(arg)))); });
-		unary_test("log", [](half arg) { return comp(log(arg), static_cast<half>(std::log(static_cast<float>(arg)))); });
-		unary_test("log10", [](half arg) { return comp(log10(arg), static_cast<half>(std::log10(static_cast<float>(arg)))); });
+		UNARY_MATH_TEST(exp);
+		UNARY_MATH_TEST(log);
+		UNARY_MATH_TEST(log10);
 
 		//test power functions
-		unary_test("sqrt", [](half arg) { return comp(sqrt(arg), static_cast<half>(std::sqrt(static_cast<float>(arg)))); });
-		binary_test("pow", [](half a, half b) { return comp(pow(a, b), 
-			static_cast<half>(std::pow(static_cast<float>(a), static_cast<float>(b)))); });
+		UNARY_MATH_TEST(sqrt);
+		BINARY_MATH_TEST(pow);
 
 		//test trig functions
-		unary_test("sin", [](half arg) { return comp(sin(arg), static_cast<half>(std::sin(static_cast<float>(arg)))); });
-		unary_test("cos", [](half arg) { return comp(cos(arg), static_cast<half>(std::cos(static_cast<float>(arg)))); });
-		unary_test("tan", [](half arg) { return comp(tan(arg), static_cast<half>(std::tan(static_cast<float>(arg)))); });
-		unary_test("asin", [](half arg) { return comp(asin(arg), static_cast<half>(std::asin(static_cast<float>(arg)))); });
-		unary_test("acos", [](half arg) { return comp(acos(arg), static_cast<half>(std::acos(static_cast<float>(arg)))); });
-		unary_test("atan", [](half arg) { return comp(atan(arg), static_cast<half>(std::atan(static_cast<float>(arg)))); });
-		binary_test("atan2", [](half a, half b) { return comp(atan2(a, b), 
-			static_cast<half>(std::atan2(static_cast<float>(a), static_cast<float>(b)))); });
+		UNARY_MATH_TEST(sin);
+		UNARY_MATH_TEST(cos);
+		UNARY_MATH_TEST(tan);
+		UNARY_MATH_TEST(asin);
+		UNARY_MATH_TEST(acos);
+		UNARY_MATH_TEST(atan);
+		BINARY_MATH_TEST(atan2);
 
 		//test hyp functions
-		unary_test("sinh", [](half arg) { return comp(sinh(arg), static_cast<half>(std::sinh(static_cast<float>(arg)))); });
-		unary_test("cosh", [](half arg) { return comp(cosh(arg), static_cast<half>(std::cosh(static_cast<float>(arg)))); });
-		unary_test("tanh", [](half arg) { return comp(tanh(arg), static_cast<half>(std::tanh(static_cast<float>(arg)))); });
+		UNARY_MATH_TEST(sinh);
+		UNARY_MATH_TEST(cosh);
+		UNARY_MATH_TEST(tanh);
 
 		//test round functions
-		unary_test("ceil", [](half arg) { return comp(ceil(arg), static_cast<half>(std::ceil(static_cast<float>(arg)))); });
-		unary_test("floor", [](half arg) { return comp(floor(arg), static_cast<half>(std::floor(static_cast<float>(arg)))); });
+		UNARY_MATH_TEST(ceil);
+		UNARY_MATH_TEST(floor);
 		unary_test("trunc", [](half arg) { return !isfinite(arg) || comp(trunc(arg), static_cast<half>(static_cast<int>(arg))); });
 		unary_test("round", [](half arg) { return !isfinite(arg) || comp(round(arg), 
 			static_cast<half>(static_cast<int>(static_cast<float>(arg)+(signbit(arg) ? -0.5f : 0.5f)))); });
 		unary_test("lround", [](half arg) { return !isfinite(arg) || lround(arg) == 
 			static_cast<long>(static_cast<float>(arg)+(signbit(arg) ? -0.5f : 0.5f)); });
-		unary_test("nearbyint", [](half arg) { return !isfinite(arg) || comp(nearbyint(arg), static_cast<half>(static_cast<int>(arg))); });
-		unary_test("rint", [](half arg) { return !isfinite(arg) || comp(rint(arg), static_cast<half>(static_cast<int>(arg))); });
-		unary_test("lrint", [](half arg) { return !isfinite(arg) || lrint(arg) == static_cast<long>(arg); });
+		unary_test("nearbyint", [](half arg) { return !isfinite(arg) || comp(nearbyint(arg), static_cast<half>(half_cast<int>(arg))); });
+		unary_test("rint", [](half arg) { return !isfinite(arg) || comp(rint(arg), static_cast<half>(half_cast<int>(arg))); });
+		unary_test("lrint", [](half arg) { return !isfinite(arg) || lrint(arg) == half_cast<long>(arg); });
 	#if HALF_ENABLE_CPP11_LONG_LONG
 		unary_test("llround", [](half arg) { return !isfinite(arg) || llround(arg) == 
 			static_cast<long long>(static_cast<float>(arg)+(signbit(arg) ? -0.5f : 0.5f)); });
-		unary_test("llrint", [](half arg) { return !isfinite(arg) || llrint(arg) == static_cast<long long>(arg); });
+		unary_test("llrint", [](half arg) { return !isfinite(arg) || llrint(arg) == half_cast<long long>(arg); });
 	#endif
 
 		//test float functions
@@ -220,9 +227,12 @@ public:
 			static_cast<half>(std::frexp(static_cast<float>(arg), &ef))); return eq && eh==ef; });
 		unary_test("ldexp", [](half arg) -> bool { unsigned int passed = 0; for(int i=-50; i<50; ++i) passed += 
 			comp(ldexp(arg, i), static_cast<half>(std::ldexp(static_cast<float>(arg), i))); return passed==100; });
-		unary_test("modf", [](half arg) -> bool { half h; float f; bool eq = comp(modf(arg, &h), static_cast<half>(
-			std::modf(static_cast<float>(arg), &f))); return eq && comp(h, static_cast<half>(f)); });
+		unary_test("modf", [](half arg) -> bool { half h; float f; return comp(modf(arg, &h), static_cast<half>(
+			std::modf(static_cast<float>(arg), &f))) && comp(h, static_cast<half>(f)); });
 		binary_test("nextafter", [](half a, half b) -> bool { half c = nextafter(a, b); std::int16_t d = std::abs(
+			static_cast<std::int16_t>(h2b(a)-h2b(c))); return ((isnan(a) || isnan(b)) && isnan(c)) || 
+			(comp(a, b) && comp(b, c)) || ((d==1||d==0x7FFF) && (a<b)==(a<c)); });
+		binary_test("nexttoward", [](half a, half b) -> bool { half c = nexttoward(a, static_cast<long double>(b)); std::int16_t d = std::abs(
 			static_cast<std::int16_t>(h2b(a)-h2b(c))); return ((isnan(a) || isnan(b)) && isnan(c)) || 
 			(comp(a, b) && comp(b, c)) || ((d==1||d==0x7FFF) && (a<b)==(a<c)); });
 		binary_test("copysign", [](half a, half b) -> bool { half h = copysign(a, b); 
@@ -230,44 +240,45 @@ public:
 
 	#if HALF_ENABLE_CPP11_CMATH
 		//test basic functions
-		binary_test("remainder", [](half a, half b) { return comp(remainder(a, b), 
-			static_cast<half>(std::remainder(static_cast<float>(a), static_cast<float>(b)))); });
+		BINARY_MATH_TEST(remainder);
 		binary_test("remquo", [](half a, half b) -> bool { int qh = 0, qf = 0; bool eq = comp(remquo(a, b, &qh), 
 			static_cast<half>(std::remquo(static_cast<float>(a), static_cast<float>(b), &qf))); return eq && (qh&7)==(qf&7); });
-		binary_test("fmin", [](half a, half b) -> bool { half c = fmin(a, b); return ((isnan(a) || isnan(b)) && isnan(c)) || 
-			comp(c, static_cast<half>(std::fmin(static_cast<float>(a), static_cast<float>(b)))); });
-		binary_test("fmax", [](half a, half b) -> bool { half c = fmax(a, b); return ((isnan(a) || isnan(b)) && isnan(c)) || 
-			comp(c, static_cast<half>(std::fmax(static_cast<float>(a), static_cast<float>(b)))); });
-		binary_test("fdim", [](half a, half b) { return comp(fdim(a, b), static_cast<half>(
-			std::fdim(static_cast<float>(a), static_cast<float>(b)))); });
+		BINARY_MATH_TEST(fmin);
+		BINARY_MATH_TEST(fmax);
+		BINARY_MATH_TEST(fdim);
 
 		//test exponential functions
-		unary_test("exp2", [](half arg) { return comp(exp2(arg), static_cast<half>(std::exp2(static_cast<float>(arg)))); });
-		unary_test("expm1", [](half arg) { return comp(expm1(arg), static_cast<half>(std::expm1(static_cast<float>(arg)))); });
-		unary_test("log1p", [](half arg) { return comp(log1p(arg), static_cast<half>(std::log1p(static_cast<float>(arg)))); });
-		unary_test("log2", [](half arg) { return comp(log2(arg), static_cast<half>(std::log2(static_cast<float>(arg)))); });
+		UNARY_MATH_TEST(exp2);
+		UNARY_MATH_TEST(expm1);
+		UNARY_MATH_TEST(log1p);
+		UNARY_MATH_TEST(log2);
 
 		//test power functions
-		unary_test("cbrt", [](half arg) { return comp(cbrt(arg), static_cast<half>(std::cbrt(static_cast<float>(arg)))); });
-		binary_test("hypot", [](half a, half b) { return comp(hypot(a, b), static_cast<half>(
-			std::hypot(static_cast<float>(a), static_cast<float>(b)))); });
+		UNARY_MATH_TEST(cbrt);
+		BINARY_MATH_TEST(hypot);
 
 		//test hyp functions
-		unary_test("asinh", [](half arg) { return comp(asinh(arg), static_cast<half>(std::asinh(static_cast<float>(arg)))); });
-		unary_test("acosh", [](half arg) { return comp(acosh(arg), static_cast<half>(std::acosh(static_cast<float>(arg)))); });
-		unary_test("atanh", [](half arg) { return comp(atanh(arg), static_cast<half>(std::atanh(static_cast<float>(arg)))); });
+		UNARY_MATH_TEST(asinh);
+		UNARY_MATH_TEST(acosh);
+		UNARY_MATH_TEST(atanh);
 
 		//test err functions
-		unary_test("erf", [](half arg) { return comp(erf(arg), static_cast<half>(std::erf(static_cast<float>(arg)))); });
-		unary_test("erfc", [](half arg) { return comp(erfc(arg), static_cast<half>(std::erfc(static_cast<float>(arg)))); });
-		unary_test("lgamma", [](half arg) { return comp(lgamma(arg), static_cast<half>(std::lgamma(static_cast<float>(arg)))); });
-		unary_test("tgamma", [](half arg) { return comp(tgamma(arg), static_cast<half>(std::tgamma(static_cast<float>(arg)))); });
+		UNARY_MATH_TEST(erf);
+		UNARY_MATH_TEST(erfc);
+		UNARY_MATH_TEST(lgamma);
+		UNARY_MATH_TEST(tgamma);
 
 		//test round functions
-		unary_test("trunc", [](half arg) { return comp(trunc(arg), static_cast<half>(std::trunc(static_cast<float>(arg)))); });
-		unary_test("round", [](half arg) { return comp(round(arg), static_cast<half>(std::round(static_cast<float>(arg)))); });
+		UNARY_MATH_TEST(trunc);
+		UNARY_MATH_TEST(round);
 		unary_test("lround", [](half arg) { return lround(arg) == std::lround(static_cast<float>(arg)); });
 		unary_test("llround", [](half arg) { return llround(arg) == std::llround(static_cast<float>(arg)); });
+	#if HALF_ROUND_STYLE == 1 && HALF_ROUND_TIES_TO_EVEN == 1
+		UNARY_MATH_TEST(nearbyint);
+		UNARY_MATH_TEST(rint);
+		unary_test("lrint", [](half arg) { return lrint(arg) == std::lrint(static_cast<float>(arg)); });
+		unary_test("llrint", [](half arg) { return llrint(arg) == std::llrint(static_cast<float>(arg)); });
+	#endif
 
 		//test float functions
 		unary_test("scalbn", [](half arg) -> bool { unsigned int passed = 0; for(int i=-50; i<50; ++i) passed += 
@@ -306,27 +317,34 @@ public:
 
 		//test rounding
 		auto rand32 = std::bind(std::uniform_int_distribution<std::uint32_t>(0, std::numeric_limits<std::uint32_t>::max()), std::default_random_engine());
-//		simple_test("round_to_nearest", [&rand32]() mutable -> bool { unsigned int passed = 0; for(unsigned int i=0; i<1e6; ++i) {
-//			std::uint32_t u=rand32(); float f = *reinterpret_cast<float*>(&u); half a(f), b(nextafter(a, 
-//			copysign(std::numeric_limits<half>::infinity(), a))), h = half_cast<half,std::round_to_nearest>(f);
-//			float af(a), bf(b), hf(h); passed += half_float::detail::builtin_isnan(f) || 
-//			(std::abs(hf)>std::abs(f)&&comp(h, b)&&(std::abs(f-af)>=std::abs(bf-f)||isinf(h))) || 
-//			(std::abs(hf)<=std::abs(f)&&comp(h, a)&&(std::abs(f-af)<std::abs(bf-f)||isinf(h))); } return passed == 1e6; });
-		simple_test("round_to_nearest", [&rand32]() mutable -> bool { unsigned int passed = 0; for(unsigned int i=0; i<1e6; ++i) {
-			std::uint32_t u=rand32(); float f = *reinterpret_cast<float*>(&u); half a(f), b(nextafter(a, 
-			copysign(std::numeric_limits<half>::infinity(), a))), h = half_cast<half,std::round_to_nearest>(f);
-			float af(a), bf(b), hf(h); passed += half_float::detail::builtin_isnan(f) || 
-			(std::abs(hf)>std::abs(f)&&comp(h, b)&&(std::abs(f-af)>=std::abs(bf-f)||isinf(h))) || 
-			(std::abs(hf)<=std::abs(f)&&comp(h, a)&&(std::abs(f-af)<=std::abs(bf-f)||isinf(h))); } return passed == 1e6; });
-		simple_test("round_toward_zero", [&rand32]() mutable -> bool { unsigned int passed = 0; for(unsigned int i=0; i<1e6; ++i) {
-			std::uint32_t u=rand32(); float f = *reinterpret_cast<float*>(&u); half a(f), h = half_cast<half,std::round_toward_zero>(f);
-			float af(a), hf(h); passed += half_float::detail::builtin_isnan(f) || isinf(a) || af == hf; } return passed == 1e6; });
-		simple_test("round_toward_infinity", [&rand32]() mutable -> bool { unsigned int passed = 0; for(unsigned int i=0; i<1e6; ++i) {
+		simple_test("round_to_nearest", [&rand32]() -> bool { unsigned int passed = 0; for(unsigned int i=0; i<1e6; ++i) {
+			std::uint32_t u=rand32(); float f = *reinterpret_cast<float*>(&u); half a = half_cast<half,std::round_indeterminate>(f), 
+			b(nextafter(a, copysign(std::numeric_limits<half>::infinity(), a))), h = half_cast<half,std::round_to_nearest>(f);
+			float af(a), bf(b), hf(h); passed += half_float::detail::builtin_isnan(f) ||
+			(std::abs(hf)>std::abs(f)&&comp(h, b)&&((
+			#if HALF_ROUND_TIES_TO_EVEN
+				std::abs(f-af)>std::abs(bf-f) || (std::abs(f-af)==std::abs(bf-f)&&!(h2b(h)&1))
+			#else
+				std::abs(f-af)>=std::abs(bf-f)
+			#endif
+			)||isinf(h))) ||
+			(std::abs(hf)<=std::abs(f)&&comp(h, a)&&((
+			#if HALF_ROUND_TIES_TO_EVEN
+				std::abs(f-af)<std::abs(bf-f) || (std::abs(f-af)==std::abs(bf-f)&&!(h2b(h)&1))
+			#else
+				std::abs(f-af)<std::abs(bf-f)
+			#endif
+			)||isinf(h))); } return passed == 1e6; });
+		simple_test("round_toward_zero", [&rand32]() -> bool { unsigned int passed = 0; for(unsigned int i=0; i<1e6; ++i) {
+			std::uint32_t u=rand32(); float f = *reinterpret_cast<float*>(&u); half a = half_cast<half,std::round_indeterminate>(f), 
+			h = half_cast<half,std::round_toward_zero>(f); float af(a), hf(h); 
+			passed += half_float::detail::builtin_isnan(f) || isinf(a) || af == hf; } return passed == 1e6; });
+		simple_test("round_toward_infinity", [&rand32]() -> bool { unsigned int passed = 0; for(unsigned int i=0; i<1e6; ++i) {
 			std::uint32_t u=rand32(); float f = *reinterpret_cast<float*>(&u); half a = half_cast<half,std::round_toward_zero>(f), 
 			b(nextafter(a, copysign(std::numeric_limits<half>::infinity(), a))), h = half_cast<half,std::round_toward_infinity>(f);
 			float hf(h); passed += half_float::detail::builtin_isnan(f) || (comp(h, a)&&(signbit(h)||hf==f)) || 
 			(comp(h, b)&&!signbit(h)&&hf>f); } return passed == 1e6; });
-		simple_test("round_toward_neg_infinity", [&rand32]() mutable -> bool { unsigned int passed = 0; for(unsigned int i=0; i<1e6; ++i) {
+		simple_test("round_toward_neg_infinity", [&rand32]() -> bool { unsigned int passed = 0; for(unsigned int i=0; i<1e6; ++i) {
 			std::uint32_t u=rand32(); float f = *reinterpret_cast<float*>(&u); half a = half_cast<half,std::round_toward_zero>(f), 
 			b(nextafter(a, copysign(std::numeric_limits<half>::infinity(), a))), h = half_cast<half,std::round_toward_neg_infinity>(f);
 			float hf(h); passed += half_float::detail::builtin_isnan(f) || (comp(h, a)&&(!signbit(h)||hf==f)) || 
@@ -336,18 +354,24 @@ public:
 		auto rand23 = std::bind(std::uniform_int_distribution<std::uint32_t>(0, (1<<23)-1), std::default_random_engine());
 		unary_test("half_cast<float>", [](half arg) -> bool { float a = half_cast<float>(arg), b = static_cast<float>(arg); 
 			return *reinterpret_cast<std::uint32_t*>(&a) == *reinterpret_cast<std::uint32_t*>(&b); });
-		unary_test("half_cast<round_to_nearest>", [&rand23](half arg) mutable -> bool { float f = half_cast<float>(arg); 
+		unary_test("half_cast<round_to_nearest>", [&rand23](half arg) -> bool { float f = half_cast<float>(arg); 
 			std::uint32_t n=rand23(), m=1<<13; if(fpclassify(arg)==FP_SUBNORMAL) m <<= std::min(std::max(-ilogb(arg)-14, 0), 10);
 			*reinterpret_cast<std::uint32_t*>(&f) |= n&(m-1)&-isfinite(arg); return fpclassify(arg)==FP_ZERO || 
-			comp(half_cast<half,std::round_to_nearest>(f), (n&(m>>1)) ? nextafter(arg, copysign(std::numeric_limits<half>::infinity(), arg)) : arg); });
-		unary_test("half_cast<round_toward_zero>", [&rand23](half arg) mutable -> bool { float f = half_cast<float>(arg);
+			comp(half_cast<half,std::round_to_nearest>(f), 
+			#if HALF_ROUND_TIES_TO_EVEN
+				((n&(m>>1)) && ((n&((m>>1)-1)) || (h2b(arg)&1)))
+			#else
+				(n&(m>>1))
+			#endif
+			? nextafter(arg, copysign(std::numeric_limits<half>::infinity(), arg)) : arg); });
+		unary_test("half_cast<round_toward_zero>", [&rand23](half arg) -> bool { float f = half_cast<float>(arg);
 			std::uint32_t n=rand23(), m=1<<13; if(fpclassify(arg)==FP_SUBNORMAL) m <<= std::min(std::max(-ilogb(arg)-14, 0), 10);
 			*reinterpret_cast<std::uint32_t*>(&f) |= n&(m-1)&-isfinite(arg); return comp(half_cast<half,std::round_toward_zero>(f), arg); });
-		unary_test("half_cast<round_toward_infinity>", [&rand23](half arg) mutable -> bool { float f = half_cast<float>(arg);
+		unary_test("half_cast<round_toward_infinity>", [&rand23](half arg) -> bool { float f = half_cast<float>(arg);
 			std::uint32_t n=rand23(), m=1<<13; if(fpclassify(arg)==FP_SUBNORMAL) m <<= std::min(std::max(-ilogb(arg)-14, 0), 10);
 			*reinterpret_cast<std::uint32_t*>(&f) |= n&(m-1)&-isfinite(arg); return comp(half_cast<half,std::round_toward_infinity>(f), 
 			(!signbit(arg)&&(n&(m-1))) ? nextafter(arg, copysign(std::numeric_limits<half>::infinity(), arg)) : arg); });
-		unary_test("half_cast<round_toward_neg_infinity>", [&rand23](half arg) mutable -> bool { float f = half_cast<float>(arg);
+		unary_test("half_cast<round_toward_neg_infinity>", [&rand23](half arg) -> bool { float f = half_cast<float>(arg);
 			std::uint32_t n=rand23(), m=1<<13; if(fpclassify(arg)==FP_SUBNORMAL) m <<= std::min(std::max(-ilogb(arg)-14, 0), 10);
 			*reinterpret_cast<std::uint32_t*>(&f) |= n&(m-1)&-isfinite(arg); return comp(half_cast<half,std::round_toward_neg_infinity>(f), 
 			(signbit(arg)&&(n&(m-1))) ? nextafter(arg, copysign(std::numeric_limits<half>::infinity(), arg)) : arg); });
@@ -366,7 +390,8 @@ public:
 		simple_test("numeric_limits::epsilon", []() { return nextafter(static_cast<half>(1.0f), 
 			std::numeric_limits<half>::infinity())-static_cast<half>(1.0f) == std::numeric_limits<half>::epsilon(); });
 		binary_test("numeric_limits::round_error", [](half a, half b) -> bool { double c = static_cast<double>(a) + 
-			static_cast<double>(b); return !isfinite(a) || !isfinite(b) || std::abs(c-static_cast<double>(
+			static_cast<double>(b); return !isfinite(a) || !isfinite(b) || c>static_cast<double>(std::numeric_limits<half>::max()) || 
+			c<static_cast<double>(std::numeric_limits<half>::lowest()) || std::abs(c-static_cast<double>(
 			static_cast<half>(c)))<=std::ldexp(static_cast<double>(std::numeric_limits<half>::round_error()), 
 			ilogb(static_cast<half>(c))-std::numeric_limits<half>::digits+1); });
 
@@ -382,7 +407,7 @@ public:
 	#if HALF_ENABLE_CPP11_USER_LITERALS
 		//test literals
 		simple_test("literals", []() -> bool { using namespace half_float::literal; return comp(0.0_h, half(0.0f)) && comp(-1.0_h, half(-1.0f)) && 
-			comp(+3.14159265359_h, half(3.14159265359f)) && comp(1e-2_h, half(1e-2f)) && comp(-4.2e3_h, half(-4.2e3)); });
+			comp(+3.14159265359_h, half(3.14159265359f)) && comp(1e-2_h, half(1e-2f)) && comp(-4.2e3_h, half(-4.2e3f)); });
 	#endif
 
 	#if HALF_SSE_VERSION >= 2
@@ -428,8 +453,7 @@ private:
 	typedef std::map<std::string,half_vector> test_map;
 	typedef std::map<std::string,int> class_map;
 
-	template<typename F>
-	bool class_test(const std::string &name, F test)
+	template<typename F> bool class_test(const std::string &name, F test)
 	{
 		unsigned int count = 0;
 		log_ << "testing " << name << ":\n";
@@ -456,8 +480,7 @@ private:
 		return false;
 	}
 
-	template<typename F>
-	bool simple_test(const std::string &name, F test)
+	template<typename F> bool simple_test(const std::string &name, F test)
 	{
 		log_ << "testing " << name << ": ";
 		bool passed = test();
@@ -468,8 +491,7 @@ private:
 		return passed;
 	}
 
-	template<typename F>
-	bool unary_test(const std::string &name, F test)
+	template<typename F> bool unary_test(const std::string &name, F test)
 	{
 		unsigned int count = 0;
 		log_ << "testing " << name << ":\n";
@@ -495,8 +517,7 @@ private:
 		return false;
 	}
 
-	template<typename F>
-	bool binary_test(const std::string &name, F test)
+	template<typename F> bool binary_test(const std::string &name, F test)
 	{
 		auto rand = std::bind(std::uniform_int_distribution<std::size_t>(0, 63), std::default_random_engine());
 		unsigned int tests = 0, count = 0;
@@ -533,28 +554,20 @@ private:
 	std::vector<std::string> failed_;
 	std::ostream &log_;
 };
+/*
+#include <chrono>
+struct timer
+{
+	timer() : start_(std::chrono::high_resolution_clock::now()) {}
+	~timer() { std::cout << "time: " << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-start_).count() << " ms\n"; }
 
+private:
+	std::chrono::time_point<std::chrono::high_resolution_clock> start_;
+};
+*/
 
 int main(int argc, char *argv[])
 {
-/*	using namespace half_float::literal;
-	half a, b;
-	a = (std::numeric_limits<half>::max()*2.0_h) / 2.0_h;
-	b = std::numeric_limits<half>::max() * 2.0_h;
-	b /= 2.0_h;
-	std::cout << std::hex << a << " - " << b << std::endl;
-	a = (std::numeric_limits<half>::max()+1.0_h) - 1.0_h;
-	b = std::numeric_limits<half>::max() + 1.0_h;
-	b -= 1.0_h;
-	std::cout << a << " - " << b << std::dec << std::endl;
-*/
-	std::cout << std::hash<half>()(std::numeric_limits<half>::infinity()) << std::endl;
-
-	int i = rand();
-	half h = half_cast<half>(i);
-	unsigned int u = half_cast<unsigned int>(h);
-	half a = half_cast<half>(h), b = half_cast<half>(h+a);
-
 	half pi = half_cast<half,std::round_to_nearest>(3.1415926535897932384626433832795L);
 	std::cout << "Pi: " << pi << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(pi) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(pi))).to_string() << std::endl;
@@ -562,19 +575,11 @@ int main(int argc, char *argv[])
 	std::cout << "e:  " << e << " - 0x" << std::hex << std::setfill('0') << std::setw(4) << h2b(e) << std::dec 
 		<< " - " << std::bitset<16>(static_cast<unsigned long long>(h2b(e))).to_string() << std::endl;
 
-	std::cout << ilogb(sin(a+b)) << '\n';			//ADL test
-
-	using namespace std;
-//	using namespace half_float;
-	auto f = atan2(h, 3);
-	auto g = h + 3LL;
-	std::cout << typeid(f).name() << ", " << typeid(g).name() << '\n';
-	std::cout << exp2(half(1)) << ", " << log2(half(1)) << '\n';
-	std::cout << logb(h) << ilogb(h) << '\n';
-
 	std::unique_ptr<std::ostream> file;
 	if(argc > 1)
 		file.reset(new std::ofstream(argv[1]));
 	half_test test((argc>1) ? *file : std::cout);
+
+//	timer time;
 	return test.test();
 }
