@@ -1,6 +1,6 @@
 // half - IEEE 754-based half-precision floating point library.
 //
-// Copyright (c) 2012-2013 Christian Rau <rauy@users.sourceforge.net>
+// Copyright (c) 2012-2014 Christian Rau <rauy@users.sourceforge.net>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation 
 // files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, 
@@ -19,11 +19,33 @@
 /// \file
 /// Main header file of the library.
 
-#include <limits>
-#include <functional>
-#include <iosfwd>
-#include <cstdint>
 
+/// Default rounding mode.
+/// This specifies the rounding mode used for all conversions between [half](\ref half_float::half)s and `float`s as well as 
+/// for the half_cast() if not specifying a rounding mode explicitly. It can be redefined (before including `half.hpp`) to one 
+/// of the standard rounding modes using their respective constants or the equivalent values of 
+/// [std::float_round_style](http://en.cppreference.com/w/cpp/types/numeric_limits/float_round_style):
+///
+/// `std::float_round_style`         | value | rounding
+/// ---------------------------------|-------|-------------------------
+/// `std::round_indeterminate`       | -1    | fastest (default)
+/// `std::round_toward_zero`         | 0     | toward zero
+/// `std::round_to_nearest`          | 1     | to nearest
+/// `std::round_toward_infinity`     | 2     | toward positive infinity
+/// `std::round_toward_neg_infinity` | 3     | toward negative infinity
+///
+/// By default this is set to `-1` (`std::round_indeterminate`), which uses truncation (round toward zero, but with overflows 
+/// set to infinity) and is the fastest rounding mode possible. It can even be set to 
+/// [std::numeric_limits<float>::round_style](http://en.cppreference.com/w/cpp/types/numeric_limits/round_style) to synchronize 
+/// the rounding mode with that of the underlying single-precision implementation.
+#define HALF_ROUND_STYLE	-1
+
+/// Tie-breaking behaviour for round to nearest.
+/// This specifies if ties in round to nearest should be resolved by rounding to the nearest even value. By default this is 
+/// defined to `0` resulting in the faster but slightly more biased behaviour of rounding away from zero in half-way cases (and 
+/// thus equal to the round() function), but can be redefined to `1` (before including half.hpp) if more IEEE-conformant 
+/// behaviour is needed.
+#define HALF_ROUND_TIES_TO_EVEN	0
 
 /// Value signaling overflow.
 /// In correspondence with `HUGE_VAL[F|L]` from `<cmath>` this symbol expands to a positive value signaling the overflow of an 
@@ -35,7 +57,7 @@
 /// Fast half-precision fma function.
 /// This symbol is only defined if the fma() function generally executes as fast as, or faster than, a separate 
 /// half-precision multiplication followed by an addition. Due to the internal single-precision implementation of all 
-/// arithmetic operations, this is usually always the case.
+/// arithmetic operations, this is in fact always the case.
 ///
 /// **See also:** Documentation for [FP_FAST_FMA](http://en.cppreference.com/w/cpp/numeric/math/fma)
 #define FP_FAST_FMAH	1
@@ -514,25 +536,25 @@ namespace half_float
 	/// \{
 
 	/// Error function.
-	/// This function uses the underlying single-precision implementation and requires support for C++11 `<cmath>` functions.
+	/// This function uses the underlying single-precision implementation if C++11 `<cmath>` functions are supported.
 	/// \param arg function argument
 	/// \return error function value of \a arg
 	half erf(half arg);
 
 	/// Complementary error function.
-	/// This function uses the underlying single-precision implementation and requires support for C++11 `<cmath>` functions.
+	/// This function uses the underlying single-precision implementation if C++11 `<cmath>` functions are supported.
 	/// \param arg function argument
 	/// \return 1 minus error function value of \a arg
 	half erfc(half arg);
 
 	/// Natural logarithm of gamma function.
-	/// This function uses the underlying single-precision implementation and requires support for C++11 `<cmath>` functions.
+	/// This function uses the underlying single-precision implementation if C++11 `<cmath>` functions are supported.
 	/// \param arg function argument
 	/// \return natural logarith of gamma function for \a arg
 	half lgamma(half arg);
 
 	/// Gamma function.
-	/// This function uses the underlying single-precision implementation and requires support for C++11 `<cmath>` functions.
+	/// This function uses the underlying single-precision implementation if C++11 `<cmath>` functions are supported.
 	/// \param arg function argument
 	/// \return gamma function value of \a arg
 	half tgamma(half arg);
@@ -575,26 +597,26 @@ namespace half_float
 	/// Nearest integer.
 	/// \tparam E type of half expression
 	/// \param arg half expression to round
-	/// \return nearest integer using current single-precision rounding mode
+	/// \return nearest integer using default rounding mode
 	half nearbyint(half arg);
 
 	/// Nearest integer.
 	/// \tparam E type of half expression
 	/// \param arg half expression to round
-	/// \return nearest integer using current single-precision rounding mode
+	/// \return nearest integer using default rounding mode
 	half rint(half arg);
 
 	/// Nearest integer.
 	/// \tparam E type of half expression
 	/// \param arg half expression to round
-	/// \return nearest integer using current single-precision rounding mode
+	/// \return nearest integer using default rounding mode
 	long lrint(half arg);
 
 	/// Nearest integer.
 	/// This function requires support for C++11 `long long`.
 	/// \tparam E type of half expression
 	/// \param arg half expression to round
-	/// \return nearest integer using current single-precision rounding mode
+	/// \return nearest integer using default rounding mode
 	long long llrint(half arg);
 
 	/// \}
@@ -756,31 +778,34 @@ namespace half_float
 	/// \{
 
 	/// Cast to or from half-precision floating point number.
-	/// This casts between [half](\ref half_float::half) and any type convertible to/from `float` via an explicit cast of this 
-	/// type to/from `float`. It uses the fastest rounding possible when performing a float-to-half conversion (if any) and is 
-	/// thus equivalent to half_cast<T,std::round_indeterminate,U>() or a simple `static_cast`, but suppressing any possible 
-	/// warnings due to an otherwise implicit conversion to/from `float`.
+	/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are 
+	/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision 
+	/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be 
+	/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float` 
+	/// that a `static_cast` would otherwise do. It uses the default rounding mode.
 	///
-	/// Using this cast with neither of the two types being a [half](\ref half_float::half) results in a compiler error and 
-	/// casting between [half](\ref half_float::half)s is just a no-op.
-	/// \tparam T destination type
-	/// \tparam U source type
+	/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
+	/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
+	/// error and casting between [half](\ref half_float::half)s is just a no-op.
+	/// \tparam T destination type (half or built-in arithmetic type)
+	/// \tparam U source type (half or built-in arithmetic type)
 	/// \param arg value to cast
 	/// \return \a arg converted to destination type
 	template<typename T,typename U> T half_cast(const U &arg);
 
-	/// Cast to or from half-precision floating point number with specified rounding.
-	/// This casts between [half](\ref half_float::half) and any type convertible to/from `float` via an explicit cast of this 
-	/// type to/from `float`. The rounding mode used for the internal float-to-half conversion (if any) can be specified 
-	/// explicitly, or chosen to be the fastest possible rounding using `std::round_indeterminate`, which would be equivalent 
-	/// to half_cast<T,U>() or a simple `static_cast`, but suppressing any possible warnings due to an otherwise implicit 
-	/// conversion to/from `float`.
+	/// Cast to or from half-precision floating point number.
+	/// This casts between [half](\ref half_float::half) and any built-in arithmetic type. Floating point types are 
+	/// converted via an explicit cast to/from `float` (using the rounding mode of the built-in single precision 
+	/// implementation) and thus any possible warnings due to an otherwise implicit conversion to/from `float` will be 
+	/// suppressed. Integer types are converted directly using the given rounding mode, without any roundtrip over `float` 
+	/// that a `static_cast` would otherwise do.
 	///
-	/// Using this cast with neither of the two types being a [half](\ref half_float::half) results in a compiler error and 
-	/// casting between [half](\ref half_float::half)s is just a no-op.
-	/// \tparam T destination type
+	/// Using this cast with neither of the two types being a [half](\ref half_float::half) or with any of the two types 
+	/// not being a built-in arithmetic type (apart from [half](\ref half_float::half), of course) results in a compiler 
+	/// error and casting between [half](\ref half_float::half)s is just a no-op.
+	/// \tparam T destination type (half or built-in arithmetic type)
 	/// \tparam R rounding mode to use (see [std::float_round_style](http://en.cppreference.com/w/cpp/types/numeric_limits/float_round_style))
-	/// \tparam U source type
+	/// \tparam U source type (half or built-in arithmetic type)
 	/// \param arg value to cast
 	/// \return \a arg converted to destination type
 	template<typename T,std::float_round_style R,typename U> T half_cast(const U &arg);
@@ -839,9 +864,10 @@ namespace std
 
 		/// Rounding mode.
 		/// Due to the mix of internal single-precision computations (using the rounding mode of the underlying 
-		/// single-precision implementation) with explicit truncation of the single-to-half conversions, the actual rounding 
-		/// mode is indeterminate.
-		static constexpr std::float_round_style round_style = std::round_indeterminate;
+		/// single-precision implementation) with the rounding mode of the single-to-half conversions, the actual rounding 
+		/// mode might be `std::round_indeterminate` if the default half-precision rounding mode doesn't match the 
+		/// single-precision rounding mode.
+		static constexpr std::float_round_style round_style = /* unspecified */;
 
 		/// Significant digits.
 		static constexpr int digits = 11;

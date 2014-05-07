@@ -1,6 +1,37 @@
 Release Notes											{#changelog}
 =============
 
+1.11.0 release (2013-11-16):
+----------------------------
+
+- Made tie-breaking behaviour in round to nearest configurable by 
+  `HALF_ROUND_TIES_TO_EVEN` macro.
+- Completed support for all C++11 mathematical functions even if single-
+  precision versions from `<cmath>` are unsupported.
+- Fixed inability to disable support for C++11 mathematical functions on 
+  *VC++ 2013*.
+
+
+1.10.0 release (2013-11-09):
+----------------------------
+
+- Made default rounding mode configurable by `HALF_ROUND_STYLE` macro.
+- Added support for non-IEEE single-precision implementations.
+- Added `HALF_ENABLE_CPP11_TYPE_TRAITS` preprocessor flag for checking 
+  support for C++11 type traits and TMP features.
+- Restricted `half_cast` to support built-in arithmetic types only.
+- Changed behaviour of `half_cast` to respect rounding mode when casting 
+  to/from integer types.
+
+
+1.9.2 release (2013-11-01):
+---------------------------
+
+- Tested for *gcc 4.8*.
+- Tested and fixed for *VC++ 2013*.
+- Removed unnecessary warnings in *MSVC*.
+
+
 1.9.1 release (2013-08-08):
 ---------------------------
 
