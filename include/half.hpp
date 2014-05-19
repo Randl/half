@@ -1039,30 +1039,6 @@ namespace half_float
 		/// Wrapper implementing unspecialized half-precision functions.
 		struct functions
 		{
-			/// Addition implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return Half-precision sum stored in single-precision
-			static expr plus(float x, float y) { return expr(x+y); }
-
-			/// Subtraction implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return Half-precision difference stored in single-precision
-			static expr minus(float x, float y) { return expr(x-y); }
-
-			/// Multiplication implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return Half-precision product stored in single-precision
-			static expr multiplies(float x, float y) { return expr(x*y); }
-
-			/// Division implementation.
-			/// \param x first operand
-			/// \param y second operand
-			/// \return Half-precision quotient stored in single-precision
-			static expr divides(float x, float y) { return expr(x/y); }
-
 			/// Output implementation.
 			/// \param out stream to write to
 			/// \param arg value to write
@@ -1257,11 +1233,6 @@ namespace half_float
 				return expr(static_cast<float>(std::log(static_cast<double>(arg))*1.4426950408889634073599246810019));
 			#endif
 			}
-
-			/// Square root implementation.
-			/// \param arg function argument
-			/// \return function value stored in single-preicision
-			static expr sqrt(float arg) { return expr(std::sqrt(arg)); }
 
 			/// Cubic root implementation.
 			/// \param arg function argument
@@ -1826,11 +1797,62 @@ namespace half_float
 			/// \param arg function argument
 			/// \return absolute value
 			static half fabs(half arg) { return half(binary, arg.data_&0x7FFF); }
+
+			/// Square root implementation.
+			/// \param arg function argument
+			/// \return square root of argument
+			static half sqrt(half arg)
+			{
+				if(arg.data_ & 0x8000 && arg.data_ != 0x8000)
+					arg.data_ |= 0x7FFF;
+				int abs = arg.data_ & 0x7FFF;
+				if(!abs || abs >= 0x7C00)
+					return arg;
+				int exp = 15;
+				for(; abs<0x400; abs<<=1,--exp) ;
+				exp += abs >> 10;
+				long m = ((abs&0x3FF)|0x400L) << ((exp&1)+1);
+				exp /= 2;
+/*
+				std::ldiv_t div = std::div(mx<<11, my);
+				int m = div.quot, g = m & 1, s = div.rem != 0;
+				m >>= 1;
+*/
+				if(exp > -11)
+				{
+					uint16 value;
+					if(exp > 0)
+						value = (exp<<10) | (m&0x3FF);
+					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
+					{
+						s |= g;
+						for(; exp; ++exp,m>>=1)
+							s |= m & 1;
+						g = m & 1;
+						value |= m >> 1;
+					}
+					else
+						value = m >> (1-exp);
+					if(half::round_style == std::round_to_nearest)
+						#if HALF_ROUND_TIES_TO_EVEN
+							value += g & (s|value);
+						#else
+							value += g;
+						#endif
+					else if(half::round_style == std::round_toward_infinity)
+						value += ~(value>>15) & (g|s);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value += (value>>15) & (g|s);
+					return half(binary, value);
+				}
+				return half(binary, half::round_style==std::round_toward_infinity);
+			}
 		};
 		template<> struct unary_specialized<expr>
 		{
 			static HALF_CONSTEXPR expr negate(float arg) { return expr(-arg); }
 			static expr fabs(float arg) { return expr(std::fabs(arg)); }
+			static expr sqrt(float arg) { return expr(std::sqrt(arg)); }
 		};
 
 		/// Wrapper for binary half-precision functions needing specialization for individual argument types.
@@ -1838,6 +1860,30 @@ namespace half_float
 		/// \tparam U first argument type
 		template<typename T,typename U> struct binary_specialized
 		{
+			/// Addition implementation.
+			/// \param x first operand
+			/// \param y second operand
+			/// \return Half-precision sum stored in single-precision
+			static expr plus(float x, float y) { return expr(x+y); }
+
+			/// Subtraction implementation.
+			/// \param x first operand
+			/// \param y second operand
+			/// \return Half-precision difference stored in single-precision
+			static expr minus(float x, float y) { return expr(x-y); }
+
+			/// Multiplication implementation.
+			/// \param x first operand
+			/// \param y second operand
+			/// \return Half-precision product stored in single-precision
+			static expr multiplies(float x, float y) { return expr(x*y); }
+
+			/// Division implementation.
+			/// \param x first operand
+			/// \param y second operand
+			/// \return Half-precision quotient stored in single-precision
+			static expr divides(float x, float y) { return expr(x/y); }
+
 			/// Minimum implementation.
 			/// \param x first operand
 			/// \param y second operand
@@ -1874,6 +1920,213 @@ namespace half_float
 		};
 		template<> struct binary_specialized<half,half>
 		{
+			static half plus(half x, half y)
+			{
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				if(absx > 0x7C00)
+					return x;
+				if(absy > 0x7C00)
+					return y;
+				bool sub = (x.data_^y.data_) >> 15;
+				if(absx == 0x7C00)
+					return (sub && absy==0x7C00) ? half(binary, 0x7FFF) : x;
+				if(absy == 0x7C00)
+					return y;
+				if(!absx)
+					return y;
+				if(!absy)
+					return x;
+				uint16 value = ((sub && absy>absx) ? y.data_ : x.data_) & 0x8000;
+				if(absy > absx)
+					std::swap(absx, absy);
+				int exp = (absx>>10) + (absx<=0x3FF), d = exp - (absy>>10) - (absy<=0x3FF);
+				int mx = ((absx&0x3FF)|((absx>0x3FF)<<10)) << 3, my;
+				if(d < 13)
+				{
+					my = ((absy&0x3FF)|((absy>0x3FF)<<10)) << 2;
+					int s = 0;
+					for(; d; --d,my>>=1)
+						s |= my & 1;
+					my = (my<<1) | s;
+				}
+				else
+					my = 1;
+				int m, s = 0;
+				if(sub)
+				{
+					m = mx - my;
+					for(; m<0x2000 && exp>1; m<<=1,--exp) ;
+				}
+				else
+				{
+					m = mx + my;
+					if(m > 0x3FFF)
+					{
+						s = m & 1;
+						m >>= 1;
+						if(++exp > 30)
+						{
+							if(half::round_style == std::round_toward_infinity)
+								return half(binary, value|0x7C00-(value>>15));
+							else if(half::round_style == std::round_toward_neg_infinity)
+								return half(binary, value|0x7BFF+(value>>15));
+							return half(binary, value|0x7BFF+(half::round_style!=std::round_toward_zero));
+						}
+					}
+				}
+				s |= (m|(m>>1)) & 1;
+				int g = (m>>2) & 1;
+				value |= ((exp-1)<<10) + (m>>3);
+				if(half::round_style == std::round_to_nearest)
+					#if HALF_ROUND_TIES_TO_EVEN
+						value += g & (s|value);
+					#else
+						value += g;
+					#endif
+				else if(half::round_style == std::round_toward_infinity)
+					value += ~(value>>15) & (g|s);
+				else if(half::round_style == std::round_toward_neg_infinity)
+					value += (value>>15) & (g|s);
+				return half(binary, value);
+			}
+
+			static half minus(half x, half y) { return plus(x, half(binary, y.data_^0x8000)); }
+
+			static half multiplies(half x, half y)
+			{
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				if(absx > 0x7C00)
+					return x;
+				if(absy > 0x7C00)
+					return y;
+				uint16 value = (x.data_^y.data_) & 0x8000;
+				if(absx == 0x7C00)
+					return half(binary, !absy ? 0x7FFF : (value|0x7C00));
+				if(absy == 0x7C00)
+					return half(binary, !absx ? 0x7FFF : (value|0x7C00));
+				if(!absx || !absy)
+					return half(binary, value);
+				int exp = -15;
+				for(; absx<0x400; absx<<=1,--exp) ;
+				for(; absy<0x400; absy<<=1,--exp) ;
+				long m = ((absx&0x3FF)|0x400L) * ((absy&0x3FF)|0x400L);
+				int i = m >> 21, s = m & i, g;
+				m >>= i;
+				exp += (absx>>10) + (absy>>10) + i;
+				if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
+				{
+					s |= (m|(m>>1)) & 0xFF;
+					s |= s >> 4;
+					s |= s >> 2;
+					s |= s >> 1;
+					s &= 1;
+					g = (m>>9) & 1;
+				}
+				if(exp > 30)
+				{
+					if(half::round_style == std::round_toward_infinity)
+						value |= 0x7C00 - (value>>15);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value |= 0x7BFF + (value>>15);
+					else
+						value |= 0x7BFF + (half::round_style!=std::round_toward_zero);
+				}
+				else if(exp > -11)
+				{
+					if(exp > 0)
+						value |= (exp<<10) | ((m>>10)&0x3FF);
+					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
+					{
+						m >>= 10;
+						s |= g;
+						for(; exp; ++exp,m>>=1)
+							s |= m & 1;
+						g = m & 1;
+						value |= m >> 1;
+					}
+					else
+						value |= m >> (11-exp);
+					if(half::round_style == std::round_to_nearest)
+						#if HALF_ROUND_TIES_TO_EVEN
+							value += g & (s|value);
+						#else
+							value += g;
+						#endif
+					else if(half::round_style == std::round_toward_infinity)
+						value += ~(value>>15) & (g|s);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value += (value>>15) & (g|s);
+				}
+				else if(half::round_style == std::round_toward_infinity)
+					value -= (value>>15) - 1;
+				else if(half::round_style == std::round_toward_neg_infinity)
+					value += value >> 15;
+				return half(binary, value);
+			}
+
+			static half divides(half x, half y)
+			{
+				int absx = x.data_ & 0x7FFF, absy = y.data_ & 0x7FFF;
+				if(absx > 0x7C00)
+					return x;
+				if(absy > 0x7C00)
+					return y;
+				uint16 value = (x.data_^y.data_) & 0x8000;
+				if(absx == 0x7C00 || !absy)
+					return half(binary, (absx==absy) ? 0x7FFF : (value|0x7C00));
+				if(absy == 0x7C00 || !absx)
+					return half(binary, (absx==absy) ? 0x7FFF : value);
+				int exp = 15;
+				for(; absx<0x400; absx<<=1,--exp) ;
+				for(; absy<0x400; absy<<=1,++exp) ;
+				long mx = ((absx&0x3FF)|0x400L) << 1, my = ((absy&0x3FF)|0x400L) << 1;
+				int i = mx < my;
+				mx <<= i;
+				exp += (absx>>10) - (absy>>10) - i;
+				std::ldiv_t div = std::div(mx<<11, my);
+				int m = div.quot, g = m & 1, s = div.rem != 0;
+				m >>= 1;
+				if(exp > 30)
+				{
+					if(half::round_style == std::round_toward_infinity)
+						value |= 0x7C00 - (value>>15);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value |= 0x7BFF + (value>>15);
+					else
+						value |= 0x7BFF + (half::round_style!=std::round_toward_zero);
+				}
+				else if(exp > -11)
+				{
+					if(exp > 0)
+						value |= (exp<<10) | (m&0x3FF);
+					else if(half::round_style != std::round_indeterminate && half::round_style != std::round_toward_zero)
+					{
+						s |= g;
+						for(; exp; ++exp,m>>=1)
+							s |= m & 1;
+						g = m & 1;
+						value |= m >> 1;
+					}
+					else
+						value |= m >> (1-exp);
+					if(half::round_style == std::round_to_nearest)
+						#if HALF_ROUND_TIES_TO_EVEN
+							value += g & (s|value);
+						#else
+							value += g;
+						#endif
+					else if(half::round_style == std::round_toward_infinity)
+						value += ~(value>>15) & (g|s);
+					else if(half::round_style == std::round_toward_neg_infinity)
+						value += (value>>15) & (g|s);
+				}
+				else if(half::round_style == std::round_toward_infinity)
+					value -= (value>>15) - 1;
+				else if(half::round_style == std::round_toward_neg_infinity)
+					value += value >> 15;
+				return half(binary, value);
+			}
+
 			static half fmin(half x, half y)
 			{
 				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
@@ -1883,6 +2136,7 @@ namespace half_float
 					return x;
 				return (((xabs==x.data_) ? xabs : -xabs) > ((yabs==y.data_) ? yabs : -yabs)) ? y : x;
 			}
+
 			static half fmax(half x, half y)
 			{
 				int xabs = x.data_ & 0x7FFF, yabs = y.data_ & 0x7FFF;
@@ -1988,25 +2242,41 @@ namespace half_float
 		/// \param x left operand
 		/// \param y right operand
 		/// \return sum of half expressions
-		template<typename T,typename U> typename enable<expr,T,U>::type operator+(T x, U y) { return functions::plus(x, y); }
+//		template<typename T,typename U> typename result<T,U>::type operator+(T x, U y) { return binary_specialized<T,U>::plus(x, y); }
+		inline half operator+(half x, half y) { return binary_specialized<half,half>::plus(x, y); }
+		inline expr operator+(half x, expr y) { return binary_specialized<half,expr>::plus(x, y); }
+		inline expr operator+(expr x, half y) { return binary_specialized<expr,half>::plus(x, y); }
+		inline expr operator+(expr x, expr y) { return binary_specialized<expr,expr>::plus(x, y); }
 
 		/// Subtract halfs.
 		/// \param x left operand
 		/// \param y right operand
 		/// \return difference of half expressions
-		template<typename T,typename U> typename enable<expr,T,U>::type operator-(T x, U y) { return functions::minus(x, y); }
+//		template<typename T,typename U> typename result<T,U>::type operator-(T x, U y) { return binary_specialized<T,U>::minus(x, y); }
+		inline half operator-(half x, half y) { return binary_specialized<half,half>::minus(x, y); }
+		inline expr operator-(half x, expr y) { return binary_specialized<half,expr>::minus(x, y); }
+		inline expr operator-(expr x, half y) { return binary_specialized<expr,half>::minus(x, y); }
+		inline expr operator-(expr x, expr y) { return binary_specialized<expr,expr>::minus(x, y); }
 
 		/// Multiply halfs.
 		/// \param x left operand
 		/// \param y right operand
 		/// \return product of half expressions
-		template<typename T,typename U> typename enable<expr,T,U>::type operator*(T x, U y) { return functions::multiplies(x, y); }
+//		template<typename T,typename U> typename result<T,U>::type operator*(T x, U y) { return binary_specialized<T,U>::multiplies(x, y); }
+		inline half operator*(half x, half y) { return binary_specialized<half,half>::multiplies(x, y); }
+		inline expr operator*(half x, expr y) { return binary_specialized<half,expr>::multiplies(x, y); }
+		inline expr operator*(expr x, half y) { return binary_specialized<expr,half>::multiplies(x, y); }
+		inline expr operator*(expr x, expr y) { return binary_specialized<expr,expr>::multiplies(x, y); }
 
 		/// Divide halfs.
 		/// \param x left operand
 		/// \param y right operand
 		/// \return quotient of half expressions
-		template<typename T,typename U> typename enable<expr,T,U>::type operator/(T x, U y) { return functions::divides(x, y); }
+//		template<typename T,typename U> typename result<T,U>::type operator/(T x, U y) { return binary_specialized<T,U>::divides(x, y); }
+		inline half operator/(half x, half y) { return binary_specialized<half,half>::divides(x, y); }
+		inline expr operator/(half x, expr y) { return binary_specialized<half,expr>::divides(x, y); }
+		inline expr operator/(expr x, half y) { return binary_specialized<expr,half>::divides(x, y); }
+		inline expr operator/(expr x, expr y) { return binary_specialized<expr,expr>::divides(x, y); }
 
 		/// Identity.
 		/// \param arg operand
@@ -2195,9 +2465,9 @@ namespace half_float
 		/// Square root.
 		/// \param arg function argument
 		/// \return square root of \a arg
-//		template<typename T> typename enable<expr,T>::type sqrt(T arg) { return functions::sqrt(arg); }
-		inline expr sqrt(half arg) { return functions::sqrt(arg); }
-		inline expr sqrt(expr arg) { return functions::sqrt(arg); }
+//		template<typename T> typename enable<T,T>::type sqrt(T arg) { return unary_specialized<T>::sqrt(arg); }
+		inline half sqrt(half arg) { return unary_specialized<half>::sqrt(arg); }
+		inline expr sqrt(expr arg) { return unary_specialized<expr>::sqrt(arg); }
 
 		/// Cubic root.
 		/// \param arg function argument
