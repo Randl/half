@@ -23,6 +23,7 @@
 #define HALF_HALF_HPP
 
 #define HALF_ENABLE_NEON 1
+#define HALF_ENABLE_AVX 2
 
 /// Combined gcc version number.
 #define HALF_GNUC_VERSION (__GNUC__*100+__GNUC_MINOR__)
@@ -119,6 +120,9 @@
 	#endif
 	#if defined(_M_IX86_FP) && !defined(HALF_ENABLE_SSE)
 		#define HALF_ENABLE_SSE _M_IX86_FP
+	#endif
+	#if defined(__AVX__) && !defined(HALF_ENABLE_AVX)
+		#define HALF_ENABLE_AVX 1
 	#endif
 	#define HALF_POP_WARNINGS 1
 	#pragma warning(push)
@@ -227,6 +231,9 @@
 	#if HALF_ENABLE_SSE >= 2
 		#include <emmintrin.h>
 	#endif
+#endif
+#if HALF_ENABLE_AVX >= 1
+	#include <immintrin.h>
 #endif
 #if HALF_ENABLE_ALTIVEC
 	#include <altivec.h>
@@ -1203,6 +1210,47 @@ namespace half_float
 		{
 			return _mm_or_si128(_mm_cmplt_epi16(_mm_set1_epi16(0x7C00), _mm_and_si128(_mm_set1_epi16(0x7FFF), a)), 
 								_mm_cmplt_epi16(_mm_set1_epi16(0x7C00), _mm_and_si128(_mm_set1_epi16(0x7FFF), b)));
+		}
+#endif
+
+#if HALF_ENABLE_AVX >= 2
+		/// Convert packed single-precision AVX-vector to half-precision.
+		/// \param values packed single-precision AVX-vector
+		/// \return corresponding half-precision values packed as `(0, 0, 0, 0, 0, 0, 0, 0, h7, h6, h5, h4, h3, h2, h1, h0)`
+		inline __m256i mm256_cvtps_ph(__m256 values)
+		{
+			union { __m256 ps; __m256i pi; } value;
+			value.ps = values;
+			__m256i sign = _mm256_and_si256(_mm256_set1_epi32(0x80000000), value.pi);
+			value.pi = _mm256_xor_si256(value.pi, sign);
+			__m256i prod = _mm256_cvttps_epi32(_mm256_mul_ps(_mm256_set1_ps(137438953472.0f), value.ps));
+			value.pi = _mm256_xor_si256(value.pi, _mm256_and_si256(_mm256_xor_si256(prod, value.pi), _mm256_cmpgt_epi32(_mm256_set1_epi32(0x38800000), value.pi)));
+			const __m256i inf = _mm256_set1_epi32(0x7F800000), nan = _mm256_set1_epi32(0x7F802000);
+			value.pi = _mm256_xor_si256(value.pi, _mm256_and_si256(_mm256_xor_si256(inf, value.pi), _mm256_and_si256(_mm256_cmpgt_epi32(inf, value.pi), _mm256_cmpgt_epi32(value.pi, _mm256_set1_epi32(0x477FFFFF)))));
+			value.pi = _mm256_xor_si256(value.pi, _mm256_and_si256(_mm256_xor_si256(nan, value.pi), _mm256_and_si256(_mm256_cmpgt_epi32(nan, value.pi), _mm256_cmpgt_epi32(value.pi, inf))));
+			value.pi = _mm256_srli_epi32(value.pi, 13);
+			value.pi = _mm256_xor_si256(value.pi, _mm256_and_si256(_mm256_xor_si256(_mm256_sub_epi32(value.pi, _mm256_set1_epi32(0x0001C000)), value.pi), _mm256_cmpgt_epi32(value.pi, _mm256_set1_epi32(0x00023BFF))));
+			value.pi = _mm256_xor_si256(value.pi, _mm256_and_si256(_mm256_xor_si256(_mm256_sub_epi32(value.pi, _mm256_set1_epi32(0x0001C000)), value.pi), _mm256_cmpgt_epi32(value.pi, _mm256_set1_epi32(0x000003FF))));
+			return _mm256_packs_epi32(_mm256_or_si256(value.pi, _mm256_srai_epi32(sign, 16)), _mm256_setzero_si256());
+		}
+
+		/// Convert packed half-precision AVX-vector to single-precision.
+		/// \param values half-precision values packed as `(X, X, X, X, X, X, X, X, h7, h6, h5, h4, h3, h2, h1, h0)`
+		/// \return corresponding packed single-precision AVX-vector
+		inline __m256 mm256_cvtph_ps(__m256i values)
+		{
+			union { __m256 ps; __m256i pi; } value, prod;
+			value.pi = _mm256_unpacklo_epi16(values, _mm256_setzero_si256());
+			__m256i sign = _mm256_and_si256(_mm256_set1_epi32(0x8000), value.pi);
+			value.pi = _mm256_xor_si256(value.pi, sign);
+			value.pi = _mm256_xor_si256(value.pi, _mm256_and_si256(_mm256_xor_si256(_mm256_add_epi32(_mm256_set1_epi32(0x0001C000), value.pi), value.pi), _mm256_cmpgt_epi32(value.pi, _mm256_set1_epi32(0x000003FF))));
+			value.pi = _mm256_xor_si256(value.pi, _mm256_and_si256(_mm256_xor_si256(_mm256_add_epi32(_mm256_set1_epi32(0x0001C000), value.pi), value.pi), _mm256_cmpgt_epi32(value.pi, _mm256_set1_epi32(0x00023BFF))));
+			prod.pi = _mm256_set1_epi32(0x33800000);
+			prod.ps = _mm256_mul_ps(prod.ps, _mm256_cvtepi32_ps(value.pi));
+			__m256i mask = _mm256_cmpgt_epi32(_mm256_set1_epi32(0x00000400), value.pi);
+			value.pi = _mm256_slli_epi32(value.pi, 13);
+			value.pi = _mm256_or_si256(_mm256_xor_si256(value.pi, _mm256_and_si256(_mm256_xor_si256(prod.pi, value.pi), mask)), _mm256_slli_epi32(sign, 16));
+			return value.ps;
 		}
 #endif
 
